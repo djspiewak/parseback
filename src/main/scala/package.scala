@@ -3,7 +3,7 @@ package object parseback {
 
   val ~ = Tuple2
 
-  final implicit class ParserSyntax[A](self: => Parser[A]) {
+  final implicit class LazyParserSyntax[A](self: => Parser[A]) {
     def |(that: => Parser[A]): Parser[A] = Parser.Union(() => self, () => that)
   }
 }
