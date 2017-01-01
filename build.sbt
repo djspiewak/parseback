@@ -37,6 +37,8 @@ val BaseVersion = "0.1"
 
 licenses += ("Apache-2.0", url("http://www.apache.org/licenses/"))
 
+libraryDependencies += "org.typelevel" %% "cats-core" % "0.8.+"
+
 /***********************************************************************\
                       Boilerplate below these lines
 \***********************************************************************/
