@@ -9,7 +9,7 @@ import cats.syntax.all._
 trait Parser[+A] {
 
   @volatile
-  private[this] var lastDerivation: (Line, ParseError \/ Parser[A]) = _
+  private[this] var lastDerivation: (Char, ParseError \/ Parser[A]) = _
 
   def map[B](f: A => B): Parser[B] = Parser.Reduce(this, { (_, a: A) => f(a) :: Nil })
 
@@ -50,11 +50,11 @@ trait Parser[+A] {
   protected final def derive(line: Line): ParseError \/ Parser[A] = {
     val snapshot = lastDerivation
 
-    if (snapshot != null && (snapshot._1 eq line)) {
+    if (snapshot != null && snapshot._1 == line.head) {
       snapshot._2
     } else {
       val back = _derive(line)
-      lastDerivation = line -> back
+      lastDerivation = line.head -> back
 
       back
     }
