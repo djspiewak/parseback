@@ -1,13 +1,23 @@
 import scala.util.{Either, Left, Right}
 
 package object parseback {
+
+  // internal convenience utilities
+  private[parseback] type \/[+A, +B] = Either[A, B]
+
+  private[parseback] val -\/ = Left
+  private[parseback] val \/- = Right
+
+  // external syntax
+
   type ~[+A, +B] = (A, B)
   val ~ = Tuple2
 
-  private[parseback] type \/[+A, +B] = Either[A, B]
+  implicit def literal(str: String): Parser[String] =
+    Parser.Literal(str, 0)
 
-  private[parseback] def -\/[A, B](a: A): Either[A, B] = Left(a)
-  private[parseback] def \/-[A, B](b: B): Either[A, B] = Right(b)
+  implicit def unit(u: Unit): Parser[Unit] =
+    Parser.Epsilon(())
 
   final implicit class LazyParserSyntax[A](self: => Parser[A]) {
     def |(that: => Parser[A]): Parser[A] = Parser.Union(() => self, () => that)

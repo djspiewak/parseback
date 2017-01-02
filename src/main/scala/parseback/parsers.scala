@@ -20,6 +20,14 @@ sealed trait Parser[+A] {
 
   def ~[B](that: Parser[B]): Parser[A ~ B] = Parser.Sequence(this, that)
 
+  def ~>[B](that: Parser[B]): Parser[B] =
+    (this ~ that) map { case _ ~ b => b }
+
+  def <~[B](that: Parser[B]): Parser[A] =
+    (this ~ that) map { case a ~ _ => a }
+
+  def ^^^[B](b: B): Parser[B] = map { _ => b }
+
   // TODO diversify with associative ~ deconstruction by arity
   def ^^[B](f: (List[Line], A) => B): Parser[B] =
     Parser.Reduce(this, { (line, a: A) => f(line, a) :: Nil })

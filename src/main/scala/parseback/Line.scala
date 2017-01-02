@@ -7,7 +7,7 @@ package parseback
  */
 final case class Line(base: String, lineNo: Int, colNo: Int) {
 
-  val head: Char = base charAt colNo
+  def head: Char = base charAt colNo
 
   def project: String = base.substring(colNo)
 
