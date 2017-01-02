@@ -2,8 +2,10 @@ package parseback
 
 import cats.{Applicative, Monad}
 import cats.instances.either._
+import cats.instances.list._
 import cats.instances.option._
 import cats.instances.tuple._
+import cats.data.State
 import cats.syntax.all._
 
 sealed trait Parser[+A] {
@@ -58,6 +60,76 @@ sealed trait Parser[+A] {
     }
   }
 
+  // graph rendering is complicated... :-/
+  final override def toString: String = {
+    def renderNonterminal(label: String, target: List[Render.TokenSequence]): State[RenderState, String] = {
+      require(!target.isEmpty)
+
+      val init = label :: "::=" :: Nil
+
+      def handleSequence(seq: Render.TokenSequence): State[RenderState, List[String]] =
+        for {
+          st <- State.get[RenderState]
+          (map, _) = st
+
+          inverted = Map(map.toList map {
+            case (label, (target, _)) => target -> label
+          }: _*)
+
+          rendered <- seq traverse {
+            case -\/(p) =>
+              if (inverted contains p) {
+                State.pure[RenderState, List[String]](inverted(p) :: Nil)
+              } else {
+                p.render flatMap handleSequence
+              }
+
+            case \/-(str) =>
+              State.pure[RenderState, List[String]](str :: Nil)
+          }
+        } yield rendered.flatten
+
+      for {
+        renderedBranches <- target traverse handleSequence
+        rendered = renderedBranches reduce { _ ::: "|" :: _ }
+      } yield (init ::: rendered) mkString " "
+    }
+
+
+    val renderAll = for {
+      start <- render
+      startRender <- renderNonterminal("𝑆", start :: Nil)
+
+      st <- State.get[RenderState]
+      (nts, _) = st
+
+      allRendered <- nts.toList traverse {
+        case (label, (_, branches)) =>
+          println(s"branches.length = ${branches.length}")
+          for {
+            tokenSequences <- branches traverse { _.render }
+            rendered <- renderNonterminal(label, tokenSequences)
+          } yield rendered
+      }
+    } yield (startRender :: allRendered) mkString " ; "
+
+    renderAll runA ((Map(), Set())) value
+  }
+
+  protected type RenderState = (Map[String, (Parser[_], List[Parser[_]])], Set[String])
+  protected def render: State[RenderState, Render.TokenSequence]
+
+  protected def gatherBranches(root: Option[Parser[_]]): List[Parser[_]] = this :: Nil
+
+  protected final def assignLabel(labels: Set[String]): (Set[String], String) = {
+    val candidate = PossibleLabels(util.Random.nextInt(PossibleLabels.length))
+
+    if (labels contains candidate)
+      assignLabel(labels)
+    else
+      (labels + candidate, candidate)
+  }
+
   protected final def isNullable: Boolean = {
     import Nullable._
     import Parser._
@@ -104,13 +176,18 @@ sealed trait Parser[+A] {
 
   // memoized version of derive
   protected final def derive(line: Line): ParseError \/ Parser[A] = {
+    trace(s"DERIVE $this with $line")
+
     val snapshot = lastDerivation
 
     if (snapshot != null && snapshot._1 == line.head) {
+      trace(s"DERIVE CACHED: $snapshot")
       snapshot._2
     } else {
       val back = _derive(line)
       lastDerivation = line.head -> back
+
+      trace(s"DERIVE(of $this) completed: $lastDerivation")
 
       back
     }
@@ -134,6 +211,7 @@ sealed trait Parser[+A] {
    * If isNullable == false, then finish == None.
    */
   protected def _finish: Option[List[A]]
+
 }
 
 object Parser {
@@ -167,6 +245,9 @@ object Parser {
         lf <- left.finish
         rf <- right.finish
       } yield lf flatMap { l => rf map { r => (l, r) } }
+
+    protected def render: State[RenderState, Render.TokenSequence] =
+      State pure (-\/(left) :: -\/(right) :: Nil)
   }
 
   final case class Union[+A](_left: () => Parser[A], _right: () => Parser[A]) extends Nonterminal[A] {
@@ -189,6 +270,34 @@ object Parser {
 
       both orElse lf orElse rf
     }
+
+    protected def render: State[RenderState, Render.TokenSequence] = {
+      for {
+        st <- State.get[RenderState]
+        (nts, labels) = st
+
+        back <- if (nts.values exists { case (p, _) => p eq this }) {
+          State.pure[RenderState, Render.TokenSequence](-\/(this) :: Nil)
+        } else {
+          val (labels2, label) = assignLabel(labels)
+
+          val branches = gatherBranches(None)
+
+          for {
+            _ <- State.set((nts + (label -> ((this, branches))), labels2))
+          } yield -\/(this) :: Nil
+        }
+      } yield back
+    }
+
+    protected override def gatherBranches(root: Option[Parser[_]]): List[Parser[_]] = root match {
+      case Some(p) if p eq this => this :: Nil
+      case Some(_) =>
+        left.gatherBranches(root) ::: right.gatherBranches(root)
+
+      case None =>
+        left.gatherBranches(Some(this)) ::: right.gatherBranches(Some(this))
+    }
   }
 
   final case class Reduce[A, +B](target: Parser[A], f: (List[Line], A) => List[B]) extends Nonterminal[B] {
@@ -197,6 +306,9 @@ object Parser {
       target derive line map { Reduce(_, f) }
 
     protected def _finish = target.finish map { rs => rs flatMap { f(Nil, _) } }   // TODO line accumulation used here!
+
+    protected def render: State[RenderState, Render.TokenSequence] =
+      State pure (-\/(target) :: \/-("↪") :: \/-(f.##.toString) :: Nil)
   }
 
   final case class Literal(literal: String, offset: Int = 0) extends Terminal[String] {
@@ -217,6 +329,9 @@ object Parser {
     }
 
     protected def _finish = None
+
+    protected def render: State[RenderState, Render.TokenSequence] =
+      State pure ((s"'${literal substring offset}'" :: Nil) map { \/-(_) })
   }
 
   final case class Epsilon[+A](value: A) extends Terminal[A] {
@@ -226,5 +341,17 @@ object Parser {
       -\/(ParseError.UnexpectedTrailingCharacters(line))
 
     protected def _finish = Some(value :: Nil)
+
+    protected def render: State[RenderState, Render.TokenSequence] =
+      State pure (("ε" :: "↪" :: value.toString :: Nil) map { \/-(_) })
   }
+}
+
+private[parseback] sealed trait Render extends Product with Serializable
+
+private[parseback] object Render {
+  type TokenSequence = List[Parser[_] \/ String]
+
+  final case class Nonterminal(label: String, branches: List[Parser[_]]) extends Render
+  final case class Tokens(contents: TokenSequence) extends Render
 }
