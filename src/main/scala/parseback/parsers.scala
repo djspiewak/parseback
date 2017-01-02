@@ -6,11 +6,13 @@ import cats.instances.option._
 import cats.instances.tuple._
 import cats.syntax.all._
 
-trait Parser[+A] {
+sealed trait Parser[+A] {
 
   // non-volatile on purpose!  parsers are not expected to cross thread boundaries during a single step
   private[this] var lastDerivation: (Char, ParseError \/ Parser[A]) = _
   private[this] var finishMemo: Option[List[A]] = _
+
+  protected var nullableMemo: Nullable = Nullable.Maybe   // future optimization idea: Byte {-1, 0, 1} to shrink object map
 
   def map[B](f: A => B): Parser[B] = Parser.Reduce(this, { (_, a: A) => f(a) :: Nil })
 
@@ -46,8 +48,49 @@ trait Parser[+A] {
       Monad[F].pure(back)
   }
 
-  // TODO
-  protected def isNullable: Boolean = false
+  protected final def isNullable: Boolean = {
+    import Nullable._
+    import Parser._
+
+    def inner(p: Parser[_], tracked: Set[Parser[_]] = Set()): Nullable = {
+      if ((tracked contains p) || p.nullableMemo != Maybe) {
+        p.nullableMemo
+      } else {
+        p match {
+          case p @ Sequence(left, right) =>
+            val tracked2 = tracked + p
+
+            p.nullableMemo = inner(left, tracked2) && inner(right, tracked2)
+            p.nullableMemo
+
+          case p @ Union(_, _) =>
+            val tracked2 = tracked + p
+
+            p.nullableMemo = inner(p.left, tracked2) || inner(p.right, tracked2)
+            p.nullableMemo
+
+          case p @ Reduce(target, _) =>
+            p.nullableMemo = inner(target, tracked + p)
+            p.nullableMemo
+
+          // the following two cases should never be hit, but they
+          // are correctly defined here for documentation purposes
+          case p @ Literal(_, _) =>
+            p.nullableMemo = False
+            False
+
+          case p @ Epsilon(_) =>
+            p.nullableMemo = True
+            True
+        }
+      }
+    }
+
+    if (nullableMemo == Maybe)
+      inner(this).toBoolean
+    else
+      nullableMemo.toBoolean
+  }
 
   // memoized version of derive
   protected final def derive(line: Line): ParseError \/ Parser[A] = {
@@ -150,6 +193,8 @@ object Parser {
     require(literal.length > 0)
     require(offset < literal.length)
 
+    nullableMemo = Nullable.False
+
     protected def _derive(line: Line): ParseError \/ Parser[String] = {
       if (literal.charAt(offset) == line.head) {
         if (offset == literal.length - 1)
@@ -165,6 +210,7 @@ object Parser {
   }
 
   final case class Epsilon[+A](value: A) extends Terminal[A] {
+    nullableMemo = Nullable.True
 
     protected def _derive(line: Line): ParseError \/ Parser[A] =
       -\/(ParseError.UnexpectedTrailingCharacters(line))
