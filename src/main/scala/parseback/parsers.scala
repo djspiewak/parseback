@@ -39,21 +39,23 @@ sealed trait Parser[+A] {
    * effect it is in) into a Stream[Task, Line], which could then in turn be converted
    * pretty trivially into a Pull[Task, LineStream, Nothing].
    */
-  def apply[F[+_]: Monad](ls: LineStream[F]): F[ParseError \/ List[A]] = ls match {
-    case LineStream.More(line, tail) =>
-      val derivation = derive(line)
+  def apply[F[+_]: Monad](ls: LineStream[F]): F[ParseError \/ List[A]] = {
+    ls.normalize flatMap {
+      case LineStream.More(line, tail) =>
+        val derivation = derive(line)
 
-      derivation traverse { self2 =>
-        val ls2: F[LineStream[F]] = line.next map { l =>
-          Monad[F].pure(LineStream.More(l, tail))
-        } getOrElse tail
+        derivation traverse { self2 =>
+          val ls2: F[LineStream[F]] = line.next map { l =>
+            Monad[F].pure(LineStream.More(l, tail))
+          } getOrElse tail
 
-        ls2 flatMap { self2(_) }
-      } map { _.flatten }
+          ls2 flatMap { self2(_) }
+        } map { _.flatten }
 
-    case LineStream.Empty() =>
-      val back = finish map { \/-(_) } getOrElse -\/(ParseError.UnexpectedEOF)
-      Monad[F].pure(back)
+      case LineStream.Empty() =>
+        val back = finish map { \/-(_) } getOrElse -\/(ParseError.UnexpectedEOF)
+        Monad[F].pure(back)
+    }
   }
 
   protected final def isNullable: Boolean = {

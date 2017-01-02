@@ -1,9 +1,26 @@
 package parseback
 
-import cats.{Eval, Now}
+import cats.{Eval, Monad, Now}
+import cats.syntax.all._
 
 // a head-tail stream of [[Line]]s, with the tail computed in effect F[_]
-sealed trait LineStream[F[+_]]
+sealed trait LineStream[F[+_]] {
+  import LineStream._
+
+  /**
+   * Eliminates *leading* empty lines.  Once a non-empty line is hit,
+   * the remainder of the stream is ignored.  This is lazy within the
+   * monad, and thus does not force IO.
+   */
+  def normalize(implicit F: Monad[F]): F[LineStream[F]] = this match {
+    case More(line, tail) if line.isEmpty =>
+      tail flatMap { _.normalize }
+
+    case m @ More(_, _) => F pure m
+
+    case Empty() => F pure Empty()
+  }
+}
 
 object LineStream {
 

@@ -11,6 +11,8 @@ final case class Line(base: String, lineNo: Int, colNo: Int) {
 
   def project: String = base.substring(colNo)
 
+  def isEmpty: Boolean = project.length == 0
+
   def next: Option[Line] =
     if (colNo + 1 < base.length) Some(Line(base, lineNo, colNo + 1)) else None
 }
