@@ -39,6 +39,8 @@ licenses += ("Apache-2.0", url("http://www.apache.org/licenses/"))
 
 libraryDependencies += "org.typelevel" %% "cats-core" % "0.8.+"
 
+libraryDependencies += "org.specs2" %% "specs2-core" % "3.8.6" % Test
+
 /***********************************************************************\
                       Boilerplate below these lines
 \***********************************************************************/
