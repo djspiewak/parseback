@@ -17,12 +17,12 @@ trait Parser[+A] {
   def apply[F[+_]](ls: LineStream[F]): F[List[A]] = ???
 
   // TODO
-  def isNullable: Boolean = false
+  protected def isNullable: Boolean = false
 
   // TODO generalize to deriving in bulk, rather than by character
-  def derive(line: Line): ParseError \/ Parser[A]
+  protected def derive(line: Line): ParseError \/ Parser[A]
 
-  def finish: Option[List[A]]
+  protected def finish: Option[List[A]]
 }
 
 object Parser {
@@ -32,7 +32,7 @@ object Parser {
 
   final case class Sequence[+A, +B](left: Parser[A], right: Parser[B]) extends Nonterminal[A ~ B] {
 
-    def derive(line: Line): ParseError \/ Parser[A ~ B] = {
+    protected def derive(line: Line): ParseError \/ Parser[A ~ B] = {
       if (left.isNullable) {
         val nonNulled = left.derive(line) map { _ ~ right }
 
@@ -46,7 +46,7 @@ object Parser {
       }
     }
 
-    def finish =
+    protected def finish =
       for {
         lf <- left.finish
         rf <- right.finish
@@ -57,7 +57,7 @@ object Parser {
     lazy val left = _left()
     lazy val right = _right()
 
-    def derive(line: Line): ParseError \/ Parser[A] = {
+    protected def derive(line: Line): ParseError \/ Parser[A] = {
       val ld = left derive line
       val rd = right derive line
 
@@ -66,7 +66,7 @@ object Parser {
       both orElse ld orElse rd
     }
 
-    def finish = {
+    protected def finish = {
       val lf = left.finish
       val rf = right.finish
       val both = (lf map2 rf) { _ ++ _ }
@@ -77,17 +77,17 @@ object Parser {
 
   final case class Reduce[A, +B](target: Parser[A], f: (List[Line], A) => List[B]) extends Nonterminal[B] {
 
-    def derive(line: Line): ParseError \/ Parser[B] =
+    protected def derive(line: Line): ParseError \/ Parser[B] =
       target derive line map { Reduce(_, f) }
 
-    def finish = target.finish map { rs => rs flatMap { f(Nil, _) } }   // TODO line accumulation used here!
+    protected def finish = target.finish map { rs => rs flatMap { f(Nil, _) } }   // TODO line accumulation used here!
   }
 
   final case class Literal(literal: String, offset: Int = 0) extends Terminal[String] {
     require(literal.length > 0)
     require(offset < literal.length)
 
-    def derive(line: Line): ParseError \/ Parser[String] = {
+    protected def derive(line: Line): ParseError \/ Parser[String] = {
       if (literal.charAt(offset) == line.head) {
         if (offset == literal.length - 1)
           \/-(Epsilon(literal))
@@ -98,14 +98,14 @@ object Parser {
       }
     }
 
-    def finish = None
+    protected def finish = None
   }
 
   final case class Epsilon[+A](value: A) extends Terminal[A] {
 
-    def derive(line: Line): ParseError \/ Parser[A] =
+    protected def derive(line: Line): ParseError \/ Parser[A] =
       -\/(ParseError.UnexpectedTrailingCharacters(line))
 
-    def finish = Some(value :: Nil)
+    protected def finish = Some(value :: Nil)
   }
 }
