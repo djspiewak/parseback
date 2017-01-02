@@ -7,15 +7,16 @@ import cats.syntax.all._
 
 trait Parser[+A] {
 
-  def map[B](f: A => B): Parser[B] = Parser.Reduce(this, { (_, a: A) => f(a) })
+  def map[B](f: A => B): Parser[B] = Parser.Reduce(this, { (_, a: A) => f(a) :: Nil })
 
   def ~[B](that: Parser[B]): Parser[A ~ B] = Parser.Sequence(this, that)
 
   // TODO diversify with associative ~ deconstruction by arity
-  def ^^[B](f: (List[Line], A) => B): Parser[B] = Parser.Reduce(this, f)
+  def ^^[B](f: (List[Line], A) => B): Parser[B] = Parser.Reduce(this, { (line, a: A) => f(line, a) :: Nil })
 
   def apply[F[+_]](ls: LineStream[F]): F[List[A]] = ???
 
+  // TODO
   def isNullable: Boolean = false
 
   // TODO generalize to deriving in bulk, rather than by character
@@ -32,11 +33,24 @@ object Parser {
   final case class Sequence[+A, +B](left: Parser[A], right: Parser[B]) extends Nonterminal[A ~ B] {
 
     def derive(line: Line): ParseError \/ Parser[A ~ B] = {
-      if (left.isNullable)
-        (left.derive(line) map { _ ~ right } map2 right.derive(line)) { _ | _ }   // TODO this drives the laziness inside the monad, making it useless; is that ok?
-      else
+      if (left.isNullable) {
+        val nonNulled = left.derive(line) map { _ ~ right }
+
+        val nulled = right.derive(line) map { p =>
+          Reduce(p, { (_, b: B) => left.finish.toList.flatten map { (_, b) } })
+        }
+
+        (nonNulled map2 nulled) { _ | _ }   // TODO this drives the laziness inside the monad, making it useless; is that ok?
+      } else {
         left.derive(line) map { _ ~ right }
+      }
     }
+
+    def finish =
+      for {
+        lf <- left.finish
+        rf <- right.finish
+      } yield lf flatMap { l => rf map { r => (l, r) } }
   }
 
   final case class Union[+A](_left: () => Parser[A], _right: () => Parser[A]) extends Nonterminal[A] {
@@ -61,12 +75,12 @@ object Parser {
     }
   }
 
-  final case class Reduce[A, +B](target: Parser[A], f: (List[Line], A) => B) extends Nonterminal[B] {
+  final case class Reduce[A, +B](target: Parser[A], f: (List[Line], A) => List[B]) extends Nonterminal[B] {
 
     def derive(line: Line): ParseError \/ Parser[B] =
       target derive line map { Reduce(_, f) }
 
-    def finish = target.finish map { rs => rs map { f(Nil, _) } }   // TODO line accumulation used here!
+    def finish = target.finish map { rs => rs flatMap { f(Nil, _) } }   // TODO line accumulation used here!
   }
 
   final case class Literal(literal: String, offset: Int = 0) extends Terminal[String] {
