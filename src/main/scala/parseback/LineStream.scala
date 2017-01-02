@@ -4,7 +4,7 @@ import cats.{Eval, Monad, Now}
 import cats.syntax.all._
 
 // a head-tail stream of [[Line]]s, with the tail computed in effect F[_]
-sealed trait LineStream[F[+_]] {
+sealed trait LineStream[F[+_]] extends Product with Serializable {
   import LineStream._
 
   /**
