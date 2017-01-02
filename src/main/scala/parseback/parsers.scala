@@ -1,6 +1,6 @@
 package parseback
 
-import cats.Monad
+import cats.{Applicative, Monad}
 import cats.instances.either._
 import cats.instances.option._
 import cats.instances.tuple._
@@ -13,6 +13,8 @@ trait Parser[+A] {
   private[this] var finishMemo: Option[List[A]] = _
 
   def map[B](f: A => B): Parser[B] = Parser.Reduce(this, { (_, a: A) => f(a) :: Nil })
+
+  def map2[B, C](that: Parser[B])(f: (A, B) => C): Parser[C] = (this ~ that) map f.tupled
 
   def ~[B](that: Parser[B]): Parser[A ~ B] = Parser.Sequence(this, that)
 
@@ -82,6 +84,11 @@ trait Parser[+A] {
 }
 
 object Parser {
+
+  implicit val applicative: Applicative[Parser] = new Applicative[Parser] {
+    def pure[A](a: A): Parser[A] = Epsilon(a)
+    def ap[A, B](ff: Parser[A => B])(fa: Parser[A]): Parser[B] = (ff map2 fa) { _(_) }
+  }
 
   sealed trait Terminal[+A] extends Parser[A]
   sealed trait Nonterminal[+A] extends Parser[A]
