@@ -1,5 +1,6 @@
 package parseback
 
+import cats.Monad
 import cats.instances.either._
 import cats.instances.option._
 import cats.instances.tuple._
@@ -12,9 +13,25 @@ trait Parser[+A] {
   def ~[B](that: Parser[B]): Parser[A ~ B] = Parser.Sequence(this, that)
 
   // TODO diversify with associative ~ deconstruction by arity
-  def ^^[B](f: (List[Line], A) => B): Parser[B] = Parser.Reduce(this, { (line, a: A) => f(line, a) :: Nil })
+  def ^^[B](f: (List[Line], A) => B): Parser[B] =
+    Parser.Reduce(this, { (line, a: A) => f(line, a) :: Nil })
 
-  def apply[F[+_]](ls: LineStream[F]): F[List[A]] = ???
+  def apply[F[+_]: Monad](ls: LineStream[F]): F[ParseError \/ List[A]] = ls match {
+    case LineStream.More(line, tail) =>
+      val derivation = derive(line)
+
+      derivation traverse { self2 =>
+        val ls2: F[LineStream[F]] = line.next map { l =>
+          Monad[F].pure(LineStream.More(l, tail))
+        } getOrElse tail
+
+        ls2 flatMap { self2(_) }
+      } map { _.flatten }
+
+    case LineStream.Empty() =>
+      val back = finish map { \/-(_) } getOrElse -\/(ParseError.UnexpectedEOF)
+      Monad[F].pure(back)
+  }
 
   // TODO
   protected def isNullable: Boolean = false
