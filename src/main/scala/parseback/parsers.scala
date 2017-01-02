@@ -16,6 +16,13 @@ trait Parser[+A] {
   def ^^[B](f: (List[Line], A) => B): Parser[B] =
     Parser.Reduce(this, { (line, a: A) => f(line, a) :: Nil })
 
+  /**
+   * Among other things, it should be possible to instantiate F[_] with an fs2 Pull,
+   * which should allow fully generalizable, incremental parsing on an ephemeral stream.
+   * A prerequisite step would be to convert a Stream[Task, Bytes] (or whatever format and
+   * effect it is in) into a Stream[Task, Line], which could then in turn be converted
+   * pretty trivially into a Pull[Task, LineStream, Nothing].
+   */
   def apply[F[+_]: Monad](ls: LineStream[F]): F[ParseError \/ List[A]] = ls match {
     case LineStream.More(line, tail) =>
       val derivation = derive(line)
