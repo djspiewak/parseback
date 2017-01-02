@@ -12,7 +12,7 @@ sealed trait LineStream[F[+_]] extends Product with Serializable {
    * the remainder of the stream is ignored.  This is lazy within the
    * monad, and thus does not force IO.
    */
-  def normalize(implicit F: Monad[F]): F[LineStream[F]] = this match {
+  final def normalize(implicit F: Monad[F]): F[LineStream[F]] = this match {
     case More(line, tail) if line.isEmpty =>
       tail flatMap { _.normalize }
 
