@@ -10,6 +10,7 @@ trait Parser[+A] {
 
   // non-volatile on purpose!  parsers are not expected to cross thread boundaries during a single step
   private[this] var lastDerivation: (Char, ParseError \/ Parser[A]) = _
+  private[this] var finishMemo: Option[List[A]] = _
 
   def map[B](f: A => B): Parser[B] = Parser.Reduce(this, { (_, a: A) => f(a) :: Nil })
 
@@ -63,7 +64,21 @@ trait Parser[+A] {
   // TODO generalize to deriving in bulk, rather than by character
   protected def _derive(line: Line): ParseError \/ Parser[A]
 
-  protected def finish: Option[List[A]]
+  protected final def finish: Option[List[A]] = {
+    if (finishMemo == null) {
+      val back = _finish
+      finishMemo = back
+
+      back
+    } else {
+      finishMemo
+    }
+  }
+
+  /**
+   * If isNullable == false, then finish == None.
+   */
+  protected def _finish: Option[List[A]]
 }
 
 object Parser {
@@ -87,7 +102,7 @@ object Parser {
       }
     }
 
-    protected def finish =
+    protected def _finish =
       for {
         lf <- left.finish
         rf <- right.finish
@@ -107,7 +122,7 @@ object Parser {
       both orElse ld orElse rd
     }
 
-    protected def finish = {
+    protected def _finish = {
       val lf = left.finish
       val rf = right.finish
       val both = (lf map2 rf) { _ ++ _ }
@@ -121,7 +136,7 @@ object Parser {
     protected def _derive(line: Line): ParseError \/ Parser[B] =
       target derive line map { Reduce(_, f) }
 
-    protected def finish = target.finish map { rs => rs flatMap { f(Nil, _) } }   // TODO line accumulation used here!
+    protected def _finish = target.finish map { rs => rs flatMap { f(Nil, _) } }   // TODO line accumulation used here!
   }
 
   final case class Literal(literal: String, offset: Int = 0) extends Terminal[String] {
@@ -139,7 +154,7 @@ object Parser {
       }
     }
 
-    protected def finish = None
+    protected def _finish = None
   }
 
   final case class Epsilon[+A](value: A) extends Terminal[A] {
@@ -147,6 +162,6 @@ object Parser {
     protected def _derive(line: Line): ParseError \/ Parser[A] =
       -\/(ParseError.UnexpectedTrailingCharacters(line))
 
-    protected def finish = Some(value :: Nil)
+    protected def _finish = Some(value :: Nil)
   }
 }
