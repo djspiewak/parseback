@@ -8,7 +8,7 @@ import cats.syntax.all._
 
 trait Parser[+A] {
 
-  @volatile
+  // non-volatile on purpose!  parsers are not expected to cross thread boundaries during a single step
   private[this] var lastDerivation: (Char, ParseError \/ Parser[A]) = _
 
   def map[B](f: A => B): Parser[B] = Parser.Reduce(this, { (_, a: A) => f(a) :: Nil })
