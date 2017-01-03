@@ -95,11 +95,27 @@ sealed trait Parser[+A] {
       } yield (init ::: rendered) mkString " "
     }
 
-
     val renderAll = for {
       start <- render
-      startRender <- renderNonterminal("𝑆", start :: Nil)
 
+      st <- State.get[RenderState]
+      (nts, labels) = st
+
+      // if we ARE a non-terminal, relabel as start
+      relabeled <- nts find { case (_, (p, _)) => p eq this } traverse {
+        case (label, (target, branches)) =>
+          val nts2 = nts - label + ("𝑆" -> ((target, branches)))
+          val labels2 = labels - label + "𝑆"
+
+          State.set((nts2, labels2))
+      }
+
+      startRender <- if (relabeled.isDefined)
+        State.pure[RenderState, Option[String]](None)
+      else
+        renderNonterminal("𝑆", start :: Nil) map { Some(_) }
+
+      // shadow the earlier state
       st <- State.get[RenderState]
       (nts, _) = st
 
@@ -111,7 +127,7 @@ sealed trait Parser[+A] {
             rendered <- renderNonterminal(label, tokenSequences)
           } yield rendered
       }
-    } yield (startRender :: allRendered) mkString " ; "
+    } yield (startRender.toList ::: allRendered) mkString " ; "
 
     renderAll runA ((Map(), Set())) value
   }
@@ -308,7 +324,7 @@ object Parser {
     protected def _finish = target.finish map { rs => rs flatMap { f(Nil, _) } }   // TODO line accumulation used here!
 
     protected def render: State[RenderState, Render.TokenSequence] =
-      State pure (-\/(target) :: \/-("↪") :: \/-(f.##.toString) :: Nil)
+      State pure (-\/(target) :: \/-("↪") :: \/-("λ") :: Nil)
   }
 
   final case class Literal(literal: String, offset: Int = 0) extends Terminal[String] {
