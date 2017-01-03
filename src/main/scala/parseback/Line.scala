@@ -9,7 +9,7 @@ final case class Line(base: String, lineNo: Int, colNo: Int) {
 
   def head: Char = base charAt colNo
 
-  def project: String = base.substring(colNo)
+  def project: String = base substring colNo
 
   def isEmpty: Boolean = project.length == 0
 

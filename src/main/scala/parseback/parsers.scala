@@ -121,7 +121,6 @@ sealed trait Parser[+A] {
 
       allRendered <- nts.toList traverse {
         case (label, (_, branches)) =>
-          println(s"branches.length = ${branches.length}")
           for {
             tokenSequences <- branches traverse { _.render }
             rendered <- renderNonterminal(label, tokenSequences)
@@ -192,7 +191,9 @@ sealed trait Parser[+A] {
 
   // memoized version of derive
   protected final def derive(line: Line): ParseError \/ Parser[A] = {
-    trace(s"DERIVE $this with $line")
+    assert(!line.isEmpty)
+
+    trace(s"DERIVE $this with '${line.head}'")
 
     val snapshot = lastDerivation
 
@@ -243,6 +244,9 @@ object Parser {
   final case class Sequence[+A, +B](left: Parser[A], right: Parser[B]) extends Nonterminal[A ~ B] {
 
     protected def _derive(line: Line): ParseError \/ Parser[A ~ B] = {
+      trace(s"deriving sequence ($this)")
+      trace(s"   left.isNullable = ${left.isNullable}")
+
       if (left.isNullable) {
         val nonNulled = left.derive(line) map { _ ~ right }
 
@@ -250,7 +254,9 @@ object Parser {
           Reduce(p, { (_, b: B) => left.finish.toList.flatten map { (_, b) } })
         }
 
-        (nonNulled map2 nulled) { _ | _ }   // TODO this drives the laziness inside the monad, making it useless; is that ok?
+        val both = (nonNulled map2 nulled) { _ | _ }
+
+        both orElse nonNulled orElse nulled
       } else {
         left.derive(line) map { _ ~ right }
       }
@@ -353,13 +359,15 @@ object Parser {
   final case class Epsilon[+A](value: A) extends Terminal[A] {
     nullableMemo = Nullable.True
 
+    override def ^^^[B](b: B): Parser[B] = Epsilon(b)
+
     protected def _derive(line: Line): ParseError \/ Parser[A] =
       -\/(ParseError.UnexpectedTrailingCharacters(line))
 
     protected def _finish = Some(value :: Nil)
 
     protected def render: State[RenderState, Render.TokenSequence] =
-      State pure (("ε" :: "↪" :: value.toString :: Nil) map { \/-(_) })
+      State pure ((s"ε=${value.toString}" :: Nil) map { \/-(_) })
   }
 }
 

@@ -9,7 +9,7 @@ package object parseback {
   private[parseback] val \/- = Right
 
   private[parseback] def trace(str: String): Unit = {
-    println(str)
+    // println(str)
   }
 
   // provides 676 possible labels; should be enough for most practical purposes
@@ -25,7 +25,7 @@ package object parseback {
     Parser.Literal(str, 0)
 
   implicit def unit(u: Unit): Parser[Unit] =
-    Parser.Epsilon(())
+    Parser.Epsilon(() :: Nil)
 
   final implicit class LazyParserSyntax[A](self: => Parser[A]) {
     def |(that: => Parser[A]): Parser[A] = Parser.Union(() => self, () => that)
