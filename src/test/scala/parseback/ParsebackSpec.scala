@@ -36,7 +36,7 @@ trait ParsebackSpec extends Spec with SpecificationFeatures {
     }
   }
 
-  final def failToParse(input: String)(error: ParseError): Matcher[Parser[_]] = { p: Parser[_] =>
+  final def failToParse(input: String)(errors: List[ParseError]): Matcher[Parser[_]] = { p: Parser[_] =>
     val maybeResults = p(LineStream(input)).value
 
     maybeResults match {
@@ -44,7 +44,9 @@ trait ParsebackSpec extends Spec with SpecificationFeatures {
         (false, "", s"failed to reject '$input' with results $results")
 
       case -\/(actual) =>
-        (actual == error, s"rejected '$input' with error $actual", s"rejected '$input' with error $actual, expected $error")
+        val test: Boolean = actual must containTheSameElementsAs(errors)
+
+        (test, s"rejected '$input' with errors $actual", s"rejected '$input' with errors $actual, expected $errors")
     }
   }
 }

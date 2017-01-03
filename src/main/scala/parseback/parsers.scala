@@ -20,15 +20,14 @@ import cats.{Applicative, Monad}
 import cats.instances.either._
 import cats.instances.list._
 import cats.instances.option._
-import cats.instances.tuple._
 import cats.data.State
 import cats.syntax.all._
 
 sealed trait Parser[+A] {
 
   // non-volatile on purpose!  parsers are not expected to cross thread boundaries during a single step
-  private[this] var lastDerivation: (Char, ParseError \/ Parser[A]) = _
-  private[this] var finishMemo: Option[List[A]] = _
+  private[this] var lastDerivation: (Char, Parser[A]) = _
+  private[this] var finishMemo: List[ParseError] \/ List[A] = _
 
   protected var nullableMemo: Nullable = Nullable.Maybe   // future optimization idea: Byte {-1, 0, 1} to shrink object map
 
@@ -57,27 +56,24 @@ sealed trait Parser[+A] {
    * effect it is in) into a Stream[Task, Line], which could then in turn be converted
    * pretty trivially into a Pull[Task, LineStream, Nothing].
    */
-  def apply[F[+_]: Monad](ls: LineStream[F]): F[ParseError \/ List[A]] = {
+  def apply[F[+_]: Monad](ls: LineStream[F]): F[List[ParseError] \/ List[A]] = {
     ls.normalize flatMap {
       case LineStream.More(line, tail) =>
         val derivation = derive(line)
 
-        derivation traverse { self2 =>
-          val ls2: F[LineStream[F]] = line.next map { l =>
-            Monad[F].pure(LineStream.More(l, tail))
-          } getOrElse tail
+        val ls2: F[LineStream[F]] = line.next map { l =>
+          Monad[F].pure(LineStream.More(l, tail))
+        } getOrElse tail
 
-          ls2 flatMap { self2(_) }
-        } map { _.flatten }
+        ls2 flatMap { derivation(_) }
 
       case LineStream.Empty() =>
-        val back = finish map { \/-(_) } getOrElse -\/(ParseError.UnexpectedEOF)
-        Monad[F].pure(back)
+        Monad[F].pure(finish(Set()))
     }
   }
 
   // graph rendering is complicated... :-/
-  final override def toString: String = {
+  final def renderCompact: String = {
     def renderNonterminal(label: String, target: List[Render.TokenSequence]): State[RenderState, String] = {
       require(!target.isEmpty)
 
@@ -195,6 +191,10 @@ sealed trait Parser[+A] {
           case p @ Epsilon(_) =>
             p.nullableMemo = True
             True
+
+          case p @ Failure(_) =>
+            p.nullableMemo = True
+            True
         }
       }
     }
@@ -206,7 +206,7 @@ sealed trait Parser[+A] {
   }
 
   // memoized version of derive
-  protected final def derive(line: Line): ParseError \/ Parser[A] = {
+  protected final def derive(line: Line): Parser[A] = {
     assert(!line.isEmpty)
 
     trace(s"DERIVE $this with '${line.head}'")
@@ -227,11 +227,13 @@ sealed trait Parser[+A] {
   }
 
   // TODO generalize to deriving in bulk, rather than by character
-  protected def _derive(line: Line): ParseError \/ Parser[A]
+  protected def _derive(line: Line): Parser[A]
 
-  protected final def finish: Option[List[A]] = {
-    if (finishMemo == null) {
-      val back = _finish
+  protected final def finish(seen: Set[Parser[_]]): List[ParseError] \/ List[A] = {
+    if (seen contains this) {
+      -\/(ParseError.UnboundedRecursion(this) :: Nil)
+    } else if (finishMemo == null) {
+      val back = _finish(seen + this)
       finishMemo = back
 
       back
@@ -243,8 +245,7 @@ sealed trait Parser[+A] {
   /**
    * If isNullable == false, then finish == None.
    */
-  protected def _finish: Option[List[A]]
-
+  protected def _finish(seen: Set[Parser[_]]): List[ParseError] \/ List[A]
 }
 
 object Parser {
@@ -259,29 +260,26 @@ object Parser {
 
   final case class Sequence[+A, +B](left: Parser[A], right: Parser[B]) extends Nonterminal[A ~ B] {
 
-    protected def _derive(line: Line): ParseError \/ Parser[A ~ B] = {
+    protected def _derive(line: Line): Parser[A ~ B] = {
       trace(s"deriving sequence ($this)")
       trace(s"   left.isNullable = ${left.isNullable}")
 
       if (left.isNullable) {
-        val nonNulled = left.derive(line) map { _ ~ right }
+        lazy val nonNulled = left.derive(line) ~ right
+        lazy val nulled = Reduce(right.derive(line), { (_, b: B) =>
+          left.finish(Set()).toList.flatten map { (_, b) }
+        })
 
-        val nulled = right.derive(line) map { p =>
-          Reduce(p, { (_, b: B) => left.finish.toList.flatten map { (_, b) } })
-        }
-
-        val both = (nonNulled map2 nulled) { _ | _ }
-
-        both orElse nonNulled orElse nulled
+        nonNulled | nulled
       } else {
-        left.derive(line) map { _ ~ right }
+        left.derive(line) ~ right
       }
     }
 
-    protected def _finish =
+    protected def _finish(seen: Set[Parser[_]]) =
       for {
-        lf <- left.finish
-        rf <- right.finish
+        lf <- left finish seen
+        rf <- right finish seen
       } yield lf flatMap { l => rf map { r => (l, r) } }
 
     protected def render: State[RenderState, Render.TokenSequence] =
@@ -292,19 +290,12 @@ object Parser {
     lazy val left = _left()
     lazy val right = _right()
 
-    protected def _derive(line: Line): ParseError \/ Parser[A] = {
-      val ld = left derive line
-      val rd = right derive line
+    protected def _derive(line: Line): Parser[A] =
+      left.derive(line) | right.derive(line)
 
-      // TODO this is a problem because we're eagerly deriving
-      val both = ((ld, rd).bisequence map { case (l, r) => l | r } )
-
-      both orElse ld orElse rd
-    }
-
-    protected def _finish = {
-      val lf = left.finish
-      val rf = right.finish
+    protected def _finish(seen: Set[Parser[_]]) = {
+      val lf = left finish seen
+      val rf = right finish seen
       val both = (lf map2 rf) { _ ++ _ }
 
       both orElse lf orElse rf
@@ -341,10 +332,11 @@ object Parser {
 
   final case class Reduce[A, +B](target: Parser[A], f: (List[Line], A) => List[B]) extends Nonterminal[B] {
 
-    protected def _derive(line: Line): ParseError \/ Parser[B] =
-      target derive line map { Reduce(_, f) }
+    protected def _derive(line: Line): Parser[B] =
+      Reduce(target derive line, f)
 
-    protected def _finish = target.finish map { rs => rs flatMap { f(Nil, _) } }   // TODO line accumulation used here!
+    protected def _finish(seen: Set[Parser[_]]) =
+      target finish seen map { rs => rs flatMap { f(Nil, _) } }   // TODO line accumulation used here!
 
     protected def render: State[RenderState, Render.TokenSequence] =
       State pure (-\/(target) :: \/-("↪") :: \/-("λ") :: Nil)
@@ -356,18 +348,19 @@ object Parser {
 
     nullableMemo = Nullable.False
 
-    protected def _derive(line: Line): ParseError \/ Parser[String] = {
+    protected def _derive(line: Line): Parser[String] = {
       if (literal.charAt(offset) == line.head) {
         if (offset == literal.length - 1)
-          \/-(Epsilon(literal))
+          Epsilon(literal)
         else
-          \/-(Literal(literal, offset + 1))
+          Literal(literal, offset + 1)
       } else {
-        -\/(ParseError.UnexpectedCharacter(line))
+        Failure(ParseError.UnexpectedCharacter(line))
       }
     }
 
-    protected def _finish = None
+    protected def _finish(seen: Set[Parser[_]]) =
+      -\/(ParseError.UnexpectedEOF :: Nil)
 
     protected def render: State[RenderState, Render.TokenSequence] =
       State pure ((s"'${literal substring offset}'" :: Nil) map { \/-(_) })
@@ -378,13 +371,24 @@ object Parser {
 
     override def ^^^[B](b: B): Parser[B] = Epsilon(b)
 
-    protected def _derive(line: Line): ParseError \/ Parser[A] =
-      -\/(ParseError.UnexpectedTrailingCharacters(line))
+    protected def _derive(line: Line): Parser[A] =
+      Failure(ParseError.UnexpectedTrailingCharacters(line))
 
-    protected def _finish = Some(value :: Nil)
+    protected def _finish(seen: Set[Parser[_]]) = \/-(value :: Nil)
 
     protected def render: State[RenderState, Render.TokenSequence] =
       State pure ((s"ε=${value.toString}" :: Nil) map { \/-(_) })
+  }
+
+  final case class Failure(error: ParseError) extends Terminal[Nothing] {
+    nullableMemo = Nullable.True
+
+    protected def _derive(line: Line): Parser[Nothing] = this
+
+    protected def _finish(seen: Set[Parser[_]]) = -\/(error :: Nil)
+
+    protected def render: State[RenderState, Render.TokenSequence] =
+      State pure (("!!" :: Nil) map { \/-(_) })
   }
 }
 
