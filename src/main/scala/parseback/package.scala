@@ -8,7 +8,8 @@ package object parseback {
   private[parseback] val -\/ = Left
   private[parseback] val \/- = Right
 
-  private[parseback] def trace(str: String): Unit = {
+  // TODO macroize
+  private[parseback] def trace(str: => String): Unit = {
     // println(str)
   }
 
@@ -25,7 +26,7 @@ package object parseback {
     Parser.Literal(str, 0)
 
   implicit def unit(u: Unit): Parser[Unit] =
-    Parser.Epsilon(() :: Nil)
+    Parser.Epsilon(())
 
   final implicit class LazyParserSyntax[A](self: => Parser[A]) {
     def |(that: => Parser[A]): Parser[A] = Parser.Union(() => self, () => that)
