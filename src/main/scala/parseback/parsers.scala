@@ -280,6 +280,7 @@ object Parser {
       val ld = left derive line
       val rd = right derive line
 
+      // TODO this is a problem because we're eagerly deriving
       val both = ((ld, rd).bisequence map { case (l, r) => l | r } )
 
       both orElse ld orElse rd

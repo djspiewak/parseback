@@ -32,4 +32,32 @@ object SimpleParserSpec extends ParsebackSpec {
       pending
     }
   }
+
+  "left-recursive repeater parser" should {
+    lazy val p: Parser[Int] = (
+        p <~ "a" ^^ { (_, i) => i + 1 }
+      | "a" ^^^ 1
+    )
+
+    // TODO scalacheck
+    "accept any number of repeating a's" in {
+      p must parseOk("a")(1)
+      p must parseOk("aaaa")(4)
+      p must parseOk("aaaaaaaaaaaaaa")(14)
+    }
+  }
+
+  "right-recursive repeater parser" should {
+    lazy val p: Parser[Int] = (
+        "a" ~> p ^^ { (_, i) => i + 1 }
+      | "a" ^^^ 1
+    )
+
+    // TODO scalacheck
+    "accept any number of repeating a's" in {
+      p must parseOk("a")(1)
+      p must parseOk("aaaa")(4)
+      p must parseOk("aaaaaaaaaaaaaa")(14)
+    }
+  }
 }
