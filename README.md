@@ -21,7 +21,13 @@ resolvers += "bintray-djspiewak-maven" at "http://dl.bintray.com/djspiewak/maven
 libraryDependencies += "com.codecommit" %% "parseback" % ParsebackVersion
 ```
 
-At the present time, there are no released versions of parseback.
+At the present time, the only released versions are snapshots.  If you're feeling extremely brave (or foolish), you can try the following snapshot:
+
+```sbt
+val ParsebackVersion = "0.1-b68f249"
+```
+
+Cross builds are available for Scala 2.12, 2.11 and 2.10.
 
 ## Examples
 
