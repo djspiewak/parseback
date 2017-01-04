@@ -59,6 +59,8 @@ libraryDependencies += "org.specs2" %% "specs2-core" % "3.8.6" % Test
 
 initialCommands := "import parseback._"
 
+bintrayVcsUrl := Some("git@github.com:djspiewak/parseback.git")
+
 /***********************************************************************\
                       Boilerplate below these lines
 \***********************************************************************/
