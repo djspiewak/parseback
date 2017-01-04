@@ -34,11 +34,11 @@ object SimpleParserSpec extends ParsebackSpec {
     }
 
     "reject an opening paren" in {
-      p must failToParse("(")(UnexpectedTrailingCharacters(Line("(", 0, 0)))
+      p must failToParse("(")(UnexpectedTrailingCharacters(Line("(")))
     }
 
     "reject a closing paren" in {
-      p must failToParse(")")(UnexpectedTrailingCharacters(Line(")", 0, 0)))
+      p must failToParse(")")(UnexpectedTrailingCharacters(Line(")")))
     }
 
     "accept arbitrary nesting" in {   // TODO scalacheck
@@ -46,9 +46,9 @@ object SimpleParserSpec extends ParsebackSpec {
     }
 
     "reject arbitrarily unbalanced nesting" in {
-      p must failToParse("())")()
-      p must failToParse("(()))")()
-      p must failToParse("(()")()
+      p must failToParse("())")(UnexpectedTrailingCharacters(Line("())")))
+      p must failToParse("(()))")(UnexpectedTrailingCharacters(Line("(()))")))
+      p must failToParse("(()")(UnexpectedTrailingCharacters(Line("(()")))
     }
   }
 

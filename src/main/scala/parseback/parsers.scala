@@ -59,6 +59,7 @@ sealed trait Parser[+A] {
   def apply[F[+_]: Monad](ls: LineStream[F]): F[List[ParseError] \/ List[A]] = {
     ls.normalize flatMap {
       case LineStream.More(line, tail) =>
+        trace(s"current line = ${line.project}")
         val derivation = derive(line)
 
         val ls2: F[LineStream[F]] = line.next map { l =>
@@ -209,18 +210,18 @@ sealed trait Parser[+A] {
   protected final def derive(line: Line): Parser[A] = {
     assert(!line.isEmpty)
 
-    trace(s"DERIVE $this with '${line.head}'")
+    trace(s"DERIVE ${this.renderCompact} with '${line.head}'")
 
     val snapshot = lastDerivation
 
     if (snapshot != null && snapshot._1 == line) {
-      trace(s"DERIVE CACHED: $snapshot")
+      trace(s"  CACHED: ${snapshot._2.renderCompact}")
       snapshot._2
     } else {
       val back = _derive(line)
       lastDerivation = line -> back
 
-      trace(s"DERIVE(of $this) completed: $lastDerivation")
+      trace(s"DERIVE of ${this.renderCompact} completed: ${back.renderCompact}")
 
       back
     }
@@ -264,14 +265,17 @@ object Parser {
   final case class Sequence[+A, +B](left: Parser[A], right: Parser[B]) extends Nonterminal[A ~ B] {
 
     protected def _derive(line: Line): Parser[A ~ B] = {
-      trace(s"deriving sequence ($this)")
+      trace(s"deriving sequence (${this.renderCompact})")
       trace(s"   left.isNullable = ${left.isNullable}")
 
       if (left.isNullable) {
         lazy val nonNulled = left.derive(line) ~ right
-        lazy val nulled = Reduce(right.derive(line), { (_, b: B) =>
-          left.finish(Set()).toList.flatten map { (_, b) }
-        })
+
+        lazy val nulled = left.finish(Set()) match {
+          case -\/(errs) => Failure(errs)     // take the left errors
+          case \/-(results) =>
+            Reduce(right.derive(line), { (_, b: B) => results map { (_, b) } })
+        }
 
         nonNulled | nulled
       } else {
@@ -359,7 +363,7 @@ object Parser {
         else
           Literal(literal, offset + 1)
       } else {
-        Failure(ParseError.UnexpectedCharacter(line))
+        Failure(ParseError.UnexpectedCharacter(line) :: Nil)
       }
     }
 
@@ -376,7 +380,7 @@ object Parser {
     override def ^^^[B](b: B): Parser[B] = Epsilon(b)
 
     protected def _derive(line: Line): Parser[A] =
-      Failure(ParseError.UnexpectedTrailingCharacters(line))
+      Failure(ParseError.UnexpectedTrailingCharacters(line) :: Nil)
 
     protected def _finish(seen: Set[Parser[_]]) = \/-(value :: Nil)
 
@@ -384,12 +388,12 @@ object Parser {
       State pure ((s"ε=${value.toString}" :: Nil) map { \/-(_) })
   }
 
-  final case class Failure(error: ParseError) extends Terminal[Nothing] {
+  final case class Failure(errors: List[ParseError]) extends Terminal[Nothing] {
     nullableMemo = Nullable.True
 
     protected def _derive(line: Line): Parser[Nothing] = this
 
-    protected def _finish(seen: Set[Parser[_]]) = -\/(error :: Nil)
+    protected def _finish(seen: Set[Parser[_]]) = -\/(errors)
 
     protected def render: State[RenderState, Render.TokenSequence] =
       State pure (("!!" :: Nil) map { \/-(_) })

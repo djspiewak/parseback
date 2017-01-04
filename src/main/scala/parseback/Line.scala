@@ -21,7 +21,7 @@ package parseback
  * @param lineNo The line offset of this line within the larger input stream (0 indexed)
  * @param colNo The column offset into `base` (0 indexed)
  */
-final case class Line(base: String, lineNo: Int, colNo: Int) {
+final case class Line(base: String, lineNo: Int = 0, colNo: Int = 0) {
 
   def head: Char = base charAt colNo
 
