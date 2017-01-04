@@ -1,5 +1,7 @@
 # parseback
 
+[![Build Status](https://travis-ci.org/djspiewak/parseback.svg?branch=master)](https://travis-ci.org/djspiewak/parseback)
+
 > Parsing with derivatives may be viewed as a form of breadth-first
 > recursive descent.  Breadth-first search is orthogonal to depth-first
 > search, and two lines which are orthogonal in two-dimensional
