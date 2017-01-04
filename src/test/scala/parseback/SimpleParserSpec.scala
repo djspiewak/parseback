@@ -17,6 +17,7 @@
 package parseback
 
 object SimpleParserSpec extends ParsebackSpec {
+  import ParseError._
 
   "parentheses parser" should {
     lazy val p: Parser[Int] = (
@@ -33,11 +34,11 @@ object SimpleParserSpec extends ParsebackSpec {
     }
 
     "reject an opening paren" in {
-      pending
+      p must failToParse("(")(UnexpectedTrailingCharacters(Line("(", 0, 0)))
     }
 
     "reject a closing paren" in {
-      pending
+      p must failToParse(")")(UnexpectedTrailingCharacters(Line(")", 0, 0)))
     }
 
     "accept arbitrary nesting" in {   // TODO scalacheck
@@ -45,7 +46,9 @@ object SimpleParserSpec extends ParsebackSpec {
     }
 
     "reject arbitrarily unbalanced nesting" in {
-      pending
+      p must failToParse("())")()
+      p must failToParse("(()))")()
+      p must failToParse("(()")()
     }
   }
 

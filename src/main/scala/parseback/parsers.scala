@@ -26,8 +26,8 @@ import cats.syntax.all._
 sealed trait Parser[+A] {
 
   // non-volatile on purpose!  parsers are not expected to cross thread boundaries during a single step
-  private[this] var lastDerivation: (Char, Parser[A]) = _
-  private[this] var finishMemo: List[ParseError] \/ List[A] = _
+  private[this] var lastDerivation: (Line, Parser[A]) = _
+  private[this] var finishMemo: List[A] = _     // cannot memoize failure
 
   protected var nullableMemo: Nullable = Nullable.Maybe   // future optimization idea: Byte {-1, 0, 1} to shrink object map
 
@@ -213,12 +213,12 @@ sealed trait Parser[+A] {
 
     val snapshot = lastDerivation
 
-    if (snapshot != null && snapshot._1 == line.head) {
+    if (snapshot != null && snapshot._1 == line) {
       trace(s"DERIVE CACHED: $snapshot")
       snapshot._2
     } else {
       val back = _derive(line)
-      lastDerivation = line.head -> back
+      lastDerivation = line -> back
 
       trace(s"DERIVE(of $this) completed: $lastDerivation")
 
@@ -234,11 +234,14 @@ sealed trait Parser[+A] {
       -\/(ParseError.UnboundedRecursion(this) :: Nil)
     } else if (finishMemo == null) {
       val back = _finish(seen + this)
-      finishMemo = back
+
+      back foreach { results =>
+        finishMemo = results
+      }
 
       back
     } else {
-      finishMemo
+      \/-(finishMemo)
     }
   }
 
@@ -298,6 +301,7 @@ object Parser {
       val rf = right finish seen
       val both = (lf map2 rf) { _ ++ _ }
 
+      // TODO correctly merge errors in the event that both sides fail
       both orElse lf orElse rf
     }
 

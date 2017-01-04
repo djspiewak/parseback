@@ -27,16 +27,22 @@ trait ParsebackSpec extends Spec with SpecificationFeatures {
 
     maybeResults match {
       case \/-(actual) =>
-        val test: Boolean = actual must containTheSameElementsAs(results)
+        val permuted = actual flatMap { a => results map { b => (a, b) } }
 
-        (test, s"accepted '$input' with results $actual", s"accepted '$input' but produced results $actual, expected $results")
+        val compared = permuted filter {
+          case (a, b) => a == b
+        }
+
+        (results.length == actual.length && compared.length == results.length,
+          s"accepted '$input' with results $actual",
+          s"accepted '$input' but produced results $actual, expected $results")
 
       case -\/(err) =>
         (false, "", s"failed to parse '$input' with error $err")
     }
   }
 
-  final def failToParse(input: String)(errors: List[ParseError]): Matcher[Parser[_]] = { p: Parser[_] =>
+  final def failToParse(input: String)(errors: ParseError*): Matcher[Parser[_]] = { p: Parser[_] =>
     val maybeResults = p(LineStream(input)).value
 
     maybeResults match {
@@ -44,9 +50,15 @@ trait ParsebackSpec extends Spec with SpecificationFeatures {
         (false, "", s"failed to reject '$input' with results $results")
 
       case -\/(actual) =>
-        val test: Boolean = actual must containTheSameElementsAs(errors)
+        val permuted = actual flatMap { a => errors map { b => (a, b) } }
 
-        (test, s"rejected '$input' with errors $actual", s"rejected '$input' with errors $actual, expected $errors")
+        val compared = permuted filter {
+          case (a, b) => a == b
+        }
+
+        (errors.length == actual.length && compared.length == errors.length,
+          s"rejected '$input' with errors $actual",
+          s"rejected '$input' with errors $actual, expected $errors")
     }
   }
 }
