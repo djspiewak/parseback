@@ -61,6 +61,13 @@ initialCommands := "import parseback._"
 
 bintrayVcsUrl := Some("git@github.com:djspiewak/parseback.git")
 
+credentials in bintray := {
+  if (isTravisBuild.value)
+    Nil
+  else
+    (credentials in bintray).value
+}
+
 /***********************************************************************\
                       Boilerplate below these lines
 \***********************************************************************/
