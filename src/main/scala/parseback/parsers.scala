@@ -29,7 +29,7 @@ sealed trait Parser[+A] {
   private[this] var lastDerivation: (Line, Parser[A]) = _
   private[this] var finishMemo: List[A] = _     // cannot memoize failure
 
-  protected var nullableMemo: Nullable = Nullable.Maybe   // future optimization idea: Byte {-1, 0, 1} to shrink object map
+  protected var nullableMemo: Nullable = Nullable.Maybe
 
   def map[B](f: A => B): Parser[B] = Parser.Reduce(this, { (_, a: A) => f(a) :: Nil })
 

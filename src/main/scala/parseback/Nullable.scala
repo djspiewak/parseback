@@ -16,30 +16,37 @@
 
 package parseback
 
+import Nullable.{ False, Maybe, True }
+
 // a Kleene algebra
-private[parseback] sealed trait Nullable extends Product with Serializable {
-  def ||(that: Nullable): Nullable
-  def &&(that: Nullable): Nullable
-  def toBoolean: Boolean
+private[parseback] final class Nullable(val value: Byte) extends AnyVal {
+  def ||(that: Nullable): Nullable = (this: @unchecked) match {
+    case True  => True
+    case Maybe => if (that == True) True else Maybe
+    case False => that
+  }
+
+  def &&(that: Nullable): Nullable = (this: @unchecked) match {
+    case True  => that
+    case Maybe => if (that == False) False else Maybe
+    case False => False
+  }
+
+  def toBoolean: Boolean = (this: @unchecked) match {
+    case True  => true
+    case Maybe => sys.error("not intended to be called")
+    case False => false
+  }
+
+  override def toString = (this: @unchecked) match {
+    case True  => "True"
+    case Maybe => "Maybe"
+    case False => "False"
+  }
 }
 
 private[parseback] object Nullable {
-
-  case object True extends Nullable {
-    def ||(that: Nullable) = True
-    def &&(that: Nullable) = that
-    def toBoolean = true
-  }
-
-  case object Maybe extends Nullable {
-    def ||(that: Nullable) = if (that == True) True else Maybe
-    def &&(that: Nullable) = if (that == False) False else Maybe
-    def toBoolean = sys.error("not intended to be called")
-  }
-
-  case object False extends Nullable {
-    def ||(that: Nullable) = that
-    def &&(that: Nullable) = False
-    def toBoolean = false
-  }
+  val True  = new Nullable(1)
+  val Maybe = new Nullable(0)
+  val False = new Nullable(-1)
 }
