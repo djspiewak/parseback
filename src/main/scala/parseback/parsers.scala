@@ -259,10 +259,7 @@ object Parser {
     def ap[A, B](ff: Parser[A => B])(fa: Parser[A]): Parser[B] = (ff map2 fa) { _(_) }
   }
 
-  sealed trait Terminal[+A] extends Parser[A]
-  sealed trait Nonterminal[+A] extends Parser[A]
-
-  final case class Sequence[+A, +B](left: Parser[A], right: Parser[B]) extends Nonterminal[A ~ B] {
+  final case class Sequence[+A, +B](left: Parser[A], right: Parser[B]) extends Parser[A ~ B] {
 
     protected def _derive(line: Line): Parser[A ~ B] = {
       trace(s"deriving sequence (${this.renderCompact})")
@@ -293,7 +290,7 @@ object Parser {
       State pure (-\/(left) :: -\/(right) :: Nil)
   }
 
-  final case class Union[+A](_left: () => Parser[A], _right: () => Parser[A]) extends Nonterminal[A] {
+  final case class Union[+A](_left: () => Parser[A], _right: () => Parser[A]) extends Parser[A] {
     lazy val left = _left()
     lazy val right = _right()
 
@@ -338,7 +335,7 @@ object Parser {
     }
   }
 
-  final case class Reduce[A, +B](target: Parser[A], f: (List[Line], A) => List[B]) extends Nonterminal[B] {
+  final case class Reduce[A, +B](target: Parser[A], f: (List[Line], A) => List[B]) extends Parser[B] {
 
     protected def _derive(line: Line): Parser[B] =
       Reduce(target derive line, f)
@@ -350,7 +347,7 @@ object Parser {
       State pure (-\/(target) :: \/-("↪") :: \/-("λ") :: Nil)
   }
 
-  final case class Literal(literal: String, offset: Int = 0) extends Terminal[String] {
+  final case class Literal(literal: String, offset: Int = 0) extends Parser[String] {
     require(literal.length > 0)
     require(offset < literal.length)
 
@@ -374,7 +371,7 @@ object Parser {
       State pure ((s"'${literal substring offset}'" :: Nil) map { \/-(_) })
   }
 
-  final case class Epsilon[+A](value: A) extends Terminal[A] {
+  final case class Epsilon[+A](value: A) extends Parser[A] {
     nullableMemo = Nullable.True
 
     override def ^^^[B](b: B): Parser[B] = Epsilon(b)
@@ -388,7 +385,7 @@ object Parser {
       State pure ((s"ε=${value.toString}" :: Nil) map { \/-(_) })
   }
 
-  final case class Failure(errors: List[ParseError]) extends Terminal[Nothing] {
+  final case class Failure(errors: List[ParseError]) extends Parser[Nothing] {
     nullableMemo = Nullable.True
 
     protected def _derive(line: Line): Parser[Nothing] = this
