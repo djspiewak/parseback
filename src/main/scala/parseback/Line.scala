@@ -30,5 +30,5 @@ final case class Line(base: String, lineNo: Int = 0, colNo: Int = 0) {
   def isEmpty: Boolean = project.length == 0
 
   def next: Option[Line] =
-    if (colNo + 1 < base.length) Some(Line(base, lineNo, colNo + 1)) else None
+    Some(Line(base, lineNo, colNo + 1)) filter (!_.isEmpty)
 }
