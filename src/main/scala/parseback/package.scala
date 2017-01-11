@@ -15,6 +15,7 @@
  */
 
 import scala.util.{Either, Left, Right}
+import scala.util.matching.{Regex => SRegex}
 
 package object parseback {
 
@@ -40,6 +41,9 @@ package object parseback {
 
   implicit def literal(str: String): Parser[String] =
     Parser.Literal(str, 0)
+
+  implicit def regex(r: SRegex): Parser[String] =
+    Parser.Regex(r)
 
   implicit def unit(u: Unit): Parser[Unit] =
     Parser.Epsilon(())

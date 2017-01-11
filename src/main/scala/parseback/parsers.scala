@@ -23,6 +23,8 @@ import cats.instances.option._
 import cats.data.State
 import cats.syntax.all._
 
+import scala.util.matching.{Regex => SRegex}
+
 sealed trait Parser[+A] {
 
   // non-volatile on purpose!  parsers are not expected to cross thread boundaries during a single step
@@ -186,6 +188,10 @@ sealed trait Parser[+A] {
           // the following two cases should never be hit, but they
           // are correctly defined here for documentation purposes
           case p @ Literal(_, _) =>
+            p.nullableMemo = False
+            False
+
+          case p @ Regex(_) =>
             p.nullableMemo = False
             False
 
@@ -369,6 +375,32 @@ object Parser {
 
     protected def render: State[RenderState, Render.TokenSequence] =
       State pure ((s"'${literal substring offset}'" :: Nil) map { \/-(_) })
+  }
+
+  // note that regular expressions cannot cross line boundaries
+  final case class Regex(r: SRegex) extends Parser[String] {
+    require(!r.pattern.matcher("").matches)
+
+    nullableMemo = Nullable.False
+
+    protected def _derive(line: Line): Parser[String] = {
+      val m = r findPrefixOf line.project
+
+      val success = m map { lit =>
+        if (lit.length == 1)
+          Epsilon(lit)
+        else
+          Literal(lit, 1)
+      }
+
+      success getOrElse Failure(ParseError.UnexpectedCharacter(line) :: Nil)
+    }
+
+    protected def _finish(seen: Set[Parser[_]]) =
+      -\/(ParseError.UnexpectedEOF :: Nil)
+
+    protected def render: State[RenderState, Render.TokenSequence] =
+      State pure ((s"/${r.pattern}/" :: Nil) map { \/-(_) })
   }
 
   final case class Epsilon[+A](value: A) extends Parser[A] {
