@@ -21,7 +21,7 @@ import scala.util.matching.{Regex => SRegex}
 final case class Whitespace(regex: SRegex) extends AnyVal {
 
   private[parseback] def stripLeading(line: Line): Option[Line] = {
-    if (!regex.regex.isEmpty) {
+    if (!regex.toString.isEmpty) {
       val whitespace = regex findPrefixOf line.project
 
       whitespace map { w =>
