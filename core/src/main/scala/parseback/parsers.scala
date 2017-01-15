@@ -18,9 +18,6 @@ package parseback
 
 import cats.{Applicative, Monad}
 import cats.instances.either._
-import cats.instances.list._
-import cats.instances.option._
-import cats.data.State
 import cats.syntax.all._
 
 import scala.util.matching.{Regex => SRegex}
@@ -72,91 +69,6 @@ sealed trait Parser[+A] {
       case LineStream.Empty() =>
         Monad[F].pure(finish(Set()))
     }
-  }
-
-  // graph rendering is complicated... :-/
-  final def renderCompact: String = {
-    def renderNonterminal(label: String, target: List[Render.TokenSequence]): State[RenderState, String] = {
-      require(!target.isEmpty)
-
-      val init = label :: "::=" :: Nil
-
-      def handleSequence(seq: Render.TokenSequence): State[RenderState, List[String]] =
-        for {
-          st <- State.get[RenderState]
-          (map, _) = st
-
-          inverted = Map(map.toList map {
-            case (label, (target, _)) => target -> label
-          }: _*)
-
-          rendered <- seq traverse {
-            case -\/(p) =>
-              if (inverted contains p) {
-                State.pure[RenderState, List[String]](inverted(p) :: Nil)
-              } else {
-                p.render flatMap handleSequence
-              }
-
-            case \/-(str) =>
-              State.pure[RenderState, List[String]](str :: Nil)
-          }
-        } yield rendered.flatten
-
-      for {
-        renderedBranches <- target traverse handleSequence
-        rendered = renderedBranches reduce { _ ::: "|" :: _ }
-      } yield (init ::: rendered) mkString " "
-    }
-
-    val renderAll = for {
-      start <- render
-
-      st <- State.get[RenderState]
-      (nts, labels) = st
-
-      // if we ARE a non-terminal, relabel as start
-      relabeled <- nts find { case (_, (p, _)) => p eq this } traverse {
-        case (label, (target, branches)) =>
-          val nts2 = nts - label + ("𝑆" -> ((target, branches)))
-          val labels2 = labels - label + "𝑆"
-
-          State.set((nts2, labels2))
-      }
-
-      startRender <- if (relabeled.isDefined)
-        State.pure[RenderState, Option[String]](None)
-      else
-        renderNonterminal("𝑆", start :: Nil) map { Some(_) }
-
-      // shadow the earlier state
-      st <- State.get[RenderState]
-      (nts, _) = st
-
-      allRendered <- nts.toList traverse {
-        case (label, (_, branches)) =>
-          for {
-            tokenSequences <- branches traverse { _.render }
-            rendered <- renderNonterminal(label, tokenSequences)
-          } yield rendered
-      }
-    } yield (startRender.toList ::: allRendered) mkString " ; "
-
-    renderAll runA ((Map(), Set())) value
-  }
-
-  protected type RenderState = (Map[String, (Parser[_], List[Parser[_]])], Set[String])
-  protected def render: State[RenderState, Render.TokenSequence]
-
-  protected def gatherBranches(root: Option[Parser[_]]): List[Parser[_]] = this :: Nil
-
-  protected final def assignLabel(labels: Set[String]): (Set[String], String) = {
-    val candidate = PossibleLabels(util.Random.nextInt(PossibleLabels.length))
-
-    if (labels contains candidate)
-      assignLabel(labels)
-    else
-      (labels + candidate, candidate)
   }
 
   protected final def isNullable: Boolean = {
@@ -215,18 +127,13 @@ sealed trait Parser[+A] {
   protected final def derive(line: Line): Parser[A] = {
     assert(!line.isEmpty)
 
-    trace(s"DERIVE ${this.renderCompact} with '${line.head}'")
-
     val snapshot = lastDerivation
 
     if (snapshot != null && snapshot._1 == line) {
-      trace(s"  CACHED: ${snapshot._2.renderCompact}")
       snapshot._2
     } else {
       val back = _derive(line)
       lastDerivation = line -> back
-
-      trace(s"DERIVE of ${this.renderCompact} completed: ${back.renderCompact}")
 
       back
     }
@@ -267,9 +174,6 @@ object Parser {
   final case class Sequence[+A, +B](left: Parser[A], right: Parser[B]) extends Parser[A ~ B] {
 
     protected def _derive(line: Line): Parser[A ~ B] = {
-      trace(s"deriving sequence (${this.renderCompact})")
-      trace(s"   left.isNullable = ${left.isNullable}")
-
       if (left.isNullable) {
         lazy val nonNulled = left.derive(line) ~ right
 
@@ -290,9 +194,6 @@ object Parser {
         lf <- left finish seen
         rf <- right finish seen
       } yield lf flatMap { l => rf map { r => (l, r) } }
-
-    protected def render: State[RenderState, Render.TokenSequence] =
-      State pure (-\/(left) :: -\/(right) :: Nil)
   }
 
   final case class Union[+A](_left: () => Parser[A], _right: () => Parser[A]) extends Parser[A] {
@@ -310,34 +211,6 @@ object Parser {
       // TODO correctly merge errors in the event that both sides fail
       both orElse lf orElse rf
     }
-
-    protected def render: State[RenderState, Render.TokenSequence] = {
-      for {
-        st <- State.get[RenderState]
-        (nts, labels) = st
-
-        back <- if (nts.values exists { case (p, _) => p eq this }) {
-          State.pure[RenderState, Render.TokenSequence](-\/(this) :: Nil)
-        } else {
-          val (labels2, label) = assignLabel(labels)
-
-          val branches = gatherBranches(None)
-
-          for {
-            _ <- State.set((nts + (label -> ((this, branches))), labels2))
-          } yield -\/(this) :: Nil
-        }
-      } yield back
-    }
-
-    protected override def gatherBranches(root: Option[Parser[_]]): List[Parser[_]] = root match {
-      case Some(p) if p eq this => this :: Nil
-      case Some(_) =>
-        left.gatherBranches(root) ::: right.gatherBranches(root)
-
-      case None =>
-        left.gatherBranches(Some(this)) ::: right.gatherBranches(Some(this))
-    }
   }
 
   final case class Apply[A, +B](target: Parser[A], f: (List[Line], A) => List[B]) extends Parser[B] {
@@ -353,9 +226,6 @@ object Parser {
 
     protected def _finish(seen: Set[Parser[_]]) =
       target finish seen map { rs => rs flatMap { f(Nil, _) } }   // TODO line accumulation used here!
-
-    protected def render: State[RenderState, Render.TokenSequence] =
-      State pure (-\/(target) :: \/-("↪") :: \/-("λ") :: Nil)
   }
 
   final case class Literal(literal: String, offset: Int = 0)(implicit W: Whitespace) extends Parser[String] {
@@ -383,9 +253,6 @@ object Parser {
 
     protected def _finish(seen: Set[Parser[_]]) =
       -\/(ParseError.UnexpectedEOF :: Nil)
-
-    protected def render: State[RenderState, Render.TokenSequence] =
-      State pure ((s"'${literal substring offset}'" :: Nil) map { \/-(_) })
   }
 
   // note that regular expressions cannot cross line boundaries
@@ -419,9 +286,6 @@ object Parser {
 
     protected def _finish(seen: Set[Parser[_]]) =
       -\/(ParseError.UnexpectedEOF :: Nil)
-
-    protected def render: State[RenderState, Render.TokenSequence] =
-      State pure ((s"/${r.pattern}/" :: Nil) map { \/-(_) })
   }
 
   final case class Epsilon[+A](value: A) extends Parser[A] {
@@ -433,9 +297,6 @@ object Parser {
       Failure(ParseError.UnexpectedTrailingCharacters(line) :: Nil)
 
     protected def _finish(seen: Set[Parser[_]]) = \/-(value :: Nil)
-
-    protected def render: State[RenderState, Render.TokenSequence] =
-      State pure ((s"ε=${value.toString}" :: Nil) map { \/-(_) })
   }
 
   final case class Failure(errors: List[ParseError]) extends Parser[Nothing] {
@@ -444,17 +305,5 @@ object Parser {
     protected def _derive(line: Line): Parser[Nothing] = this
 
     protected def _finish(seen: Set[Parser[_]]) = -\/(errors)
-
-    protected def render: State[RenderState, Render.TokenSequence] =
-      State pure (("!!" :: Nil) map { \/-(_) })
   }
-}
-
-private[parseback] sealed trait Render extends Product with Serializable
-
-private[parseback] object Render {
-  type TokenSequence = List[Parser[_] \/ String]
-
-  final case class Nonterminal(label: String, branches: List[Parser[_]]) extends Render
-  final case class Tokens(contents: TokenSequence) extends Render
 }

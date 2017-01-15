@@ -30,10 +30,6 @@ package object parseback {
     // println(str)
   }
 
-  // provides 676 possible labels; should be enough for most practical purposes
-  private[parseback] lazy val PossibleLabels =
-    ('A' to 'Z') flatMap { a => ('A' to 'Z') map { b => a.toString + b.toString } }
-
   // external syntax
 
   type ~[+A, +B] = (A, B)

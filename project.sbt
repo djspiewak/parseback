@@ -75,7 +75,7 @@ val bintraySettings = Seq(
 
 lazy val root = project
   .in(file("."))
-  .aggregate(core)
+  .aggregate(core, render)
   .settings(coursierSettings: _*)
   .settings(bintraySettings: _*)
 
@@ -83,6 +83,14 @@ lazy val core = project
   .in(file("core"))
   .settings(
     name := "parseback-core")
+  .settings(coursierSettings: _*)
+  .settings(bintraySettings: _*)
+
+lazy val render = project
+  .in(file("render"))
+  .dependsOn(core)
+  .settings(
+    name := "parseback-render")
   .settings(coursierSettings: _*)
   .settings(bintraySettings: _*)
 
