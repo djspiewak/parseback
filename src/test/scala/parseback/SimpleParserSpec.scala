@@ -78,5 +78,9 @@ object SimpleParserSpec extends ParsebackSpec {
       p must parseOk("aaaa")(4)
       p must parseOk("aaaaaaaaaaaaaa")(14)
     }
+
+    "fail with a more appropriate error when given an invalid starting token" in {
+      p must failToParse("b")(UnexpectedCharacter(Line("b", 0, 0)))
+    }
   }
 }
