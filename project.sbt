@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-organization := "com.codecommit"
+organization in ThisBuild := "com.codecommit"
 
 name := "parseback"
 
@@ -51,15 +51,9 @@ name := "parseback"
  */
 val BaseVersion = "0.1"
 
-licenses += ("Apache-2.0", url("http://www.apache.org/licenses/"))
+licenses in ThisBuild += ("Apache-2.0", url("http://www.apache.org/licenses/"))
 
-libraryDependencies += "org.typelevel" %% "cats-core" % "0.8.+"
-
-libraryDependencies += "org.specs2" %% "specs2-core" % "3.8.6" % Test
-
-initialCommands := "import parseback._"
-
-bintrayVcsUrl := Some("git@github.com:djspiewak/parseback.git")
+bintrayVcsUrl in ThisBuild := Some("git@github.com:djspiewak/parseback.git")
 
 credentials in bintray := {
   if (isTravisBuild.value)
@@ -68,17 +62,32 @@ credentials in bintray := {
     (credentials in bintray).value
 }
 
+publish := ()
+publishLocal := ()
+publishArtifact := false
+
+val coursierSettings = Seq(
+  coursierUseSbtCredentials := true,
+  coursierChecksums := Nil      // workaround for nexus sync bugs
+)
+
+lazy val root = project
+  .in(file("."))
+  .aggregate(core)
+  .settings(coursierSettings: _*)
+
+lazy val core = project
+  .in(file("core"))
+  .settings(
+    name := "parseback-core")
+  .settings(coursierSettings: _*)
+
 /***********************************************************************\
                       Boilerplate below these lines
 \***********************************************************************/
 
-coursierUseSbtCredentials := true
-coursierChecksums := Nil      // workaround for nexus sync bugs
-
-addCompilerPlugin("org.spire-math" % "kind-projector" % "0.9.3" cross CrossVersion.binary)
-
 // Adapted from Rob Norris' post at https://tpolecat.github.io/2014/04/11/scalac-flags.html
-scalacOptions ++= Seq(
+scalacOptions in ThisBuild ++= Seq(
   "-language:_",
   "-deprecation",
   "-encoding", "UTF-8", // yes, this is 2 args
@@ -90,7 +99,7 @@ scalacOptions ++= Seq(
   "-Ywarn-dead-code"
 )
 
-scalacOptions ++= {
+scalacOptions in ThisBuild ++= {
   CrossVersion.partialVersion(scalaVersion.value) match {
     case Some((2, major)) if major >= 11 => Seq(
       "-Ywarn-unused-import", // Not available in 2.10
@@ -100,7 +109,7 @@ scalacOptions ++= {
   }
 }
 
-scalacOptions ++= {
+scalacOptions in ThisBuild ++= {
   CrossVersion.partialVersion(scalaVersion.value) match {
     case Some((2, major)) if major >= 12 || scalaVersion.value == "2.11.9" =>
       Seq("-Ypartial-unification")
@@ -109,13 +118,10 @@ scalacOptions ++= {
   }
 }
 
-scalacOptions in Test += "-Yrangepos"
+libraryDependencies in ThisBuild +=
+  compilerPlugin("org.spire-math" % "kind-projector" % "0.9.3" cross CrossVersion.binary)
 
-scalacOptions in (Compile, console) ~= (_ filterNot (Set("-Xfatal-warnings", "-Ywarn-unused-import").contains))
-
-scalacOptions in (Test, console) := (scalacOptions in (Compile, console)).value
-
-libraryDependencies ++= {
+libraryDependencies in ThisBuild ++= {
   scalaVersion.value match {
     case "2.11.8" => Seq(compilerPlugin("com.milessabin" % "si2712fix-plugin" % "1.2.0" cross CrossVersion.full))
     case "2.10.6" => Seq(compilerPlugin("com.milessabin" % "si2712fix-plugin" % "1.2.0" cross CrossVersion.full))
