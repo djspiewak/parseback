@@ -33,7 +33,7 @@ sealed trait Parser[+A] {
 
   protected var nullableMemo: Nullable = Nullable.Maybe
 
-  def map[B](f: A => B): Parser[B] = Parser.Reduce(this, { (_, a: A) => f(a) :: Nil })
+  def map[B](f: A => B): Parser[B] = Parser.Apply(this, { (_, a: A) => f(a) :: Nil })
 
   def map2[B, C](that: Parser[B])(f: (A, B) => C): Parser[C] = (this ~ that) map f.tupled
 
@@ -49,7 +49,7 @@ sealed trait Parser[+A] {
 
   // TODO diversify with associative ~ deconstruction by arity
   def ^^[B](f: (List[Line], A) => B): Parser[B] =
-    Parser.Reduce(this, { (line, a: A) => f(line, a) :: Nil })
+    Parser.Apply(this, { (line, a: A) => f(line, a) :: Nil })
 
   /**
    * Among other things, it should be possible to instantiate F[_] with an fs2 Pull,
@@ -181,7 +181,7 @@ sealed trait Parser[+A] {
             p.nullableMemo = inner(p.left, tracked2) || inner(p.right, tracked2)
             p.nullableMemo
 
-          case p @ Reduce(target, _) =>
+          case p @ Apply(target, _) =>
             p.nullableMemo = inner(target, tracked + p)
             p.nullableMemo
 
@@ -277,7 +277,7 @@ object Parser {
         lazy val nulled = left.finish(Set()) match {
           case -\/(errs) => Failure(errs)     // take the left errors
           case \/-(results) =>
-            Reduce(right.derive(line), { (_, b: B) => results map { (_, b) } })
+            Apply(right.derive(line), { (_, b: B) => results map { (_, b) } })
         }
 
         nonNulled | nulled
@@ -341,10 +341,10 @@ object Parser {
     }
   }
 
-  final case class Reduce[A, +B](target: Parser[A], f: (List[Line], A) => List[B]) extends Parser[B] {
+  final case class Apply[A, +B](target: Parser[A], f: (List[Line], A) => List[B]) extends Parser[B] {
 
     protected def _derive(line: Line): Parser[B] =
-      Reduce(target derive line, f)
+      Apply(target derive line, f)
 
     protected def _finish(seen: Set[Parser[_]]) =
       target finish seen map { rs => rs flatMap { f(Nil, _) } }   // TODO line accumulation used here!
