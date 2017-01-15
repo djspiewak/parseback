@@ -48,7 +48,7 @@ sealed trait Parser[+A] {
   def ^^^[B](b: B): Parser[B] = map { _ => b }
 
   // TODO diversify with associative ~ deconstruction by arity
-  def ^^[B](f: (List[Line], A) => B): Parser[B] =
+  def mapWithLines[B](f: (List[Line], A) => B): Parser[B] =
     Parser.Apply(this, { (line, a: A) => f(line, a) :: Nil })
 
   /**

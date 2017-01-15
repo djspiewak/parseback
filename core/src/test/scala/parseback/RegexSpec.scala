@@ -25,12 +25,8 @@ object RegexSpec extends ParsebackSpec {
 
     "handle a simple arithmetic grammar" in {
       lazy val expr: Parser[Int] = (
-          expr ~ "+" ~ expr ^^ {
-            case (_, (a ~ _ ~ b)) => a + b
-          }
-        | expr ~ "-" ~ expr ^^ {
-            case (_, (a ~ _ ~ b)) => a - b
-          }
+          expr ~ "+" ~ expr ^^ { (_, a, _, b) => a + b }
+        | expr ~ "-" ~ expr ^^ { (_, a, _, b) => a - b }
         | """\d+""".r ^^ { (_, str) => str.toInt }
       )
 
@@ -41,12 +37,8 @@ object RegexSpec extends ParsebackSpec {
       implicit val W = Whitespace("""\s+""".r)
 
       lazy val expr: Parser[Int] = (
-          expr ~ "+" ~ expr ^^ {
-            case (_, (a ~ _ ~ b)) => a + b
-          }
-        | expr ~ "-" ~ expr ^^ {
-            case (_, (a ~ _ ~ b)) => a - b
-          }
+          expr ~ "+" ~ expr ^^ { (_, a, _, b) => a + b }
+        | expr ~ "-" ~ expr ^^ { (_, a, _, b) => a - b }
         | """\d+""".r ^^ { (_, str) => str.toInt }
       )
 
