@@ -35,6 +35,9 @@ sealed trait Parser[+A] {
 
   def map[B](f: A => B): Parser[B] = Parser.Apply(this, { (_, a: A) => f(a) :: Nil })
 
+  def mapWithLines[B](f: (List[Line], A) => B): Parser[B] =
+    Parser.Apply(this, { (line, a: A) => f(line, a) :: Nil })
+
   final def map2[B, C](that: Parser[B])(f: (A, B) => C): Parser[C] = (this ~ that) map f.tupled
 
   final def ~[B](that: Parser[B]): Parser[A ~ B] = Parser.Sequence(this, that)
@@ -45,10 +48,7 @@ sealed trait Parser[+A] {
   final def <~[B](that: Parser[B]): Parser[A] =
     (this ~ that) map { case a ~ _ => a }
 
-  final def ^^^[B](b: B): Parser[B] = map { _ => b }
-
-  def mapWithLines[B](f: (List[Line], A) => B): Parser[B] =
-    Parser.Apply(this, { (line, a: A) => f(line, a) :: Nil })
+  def ^^^[B](b: B): Parser[B] = map { _ => b }
 
   /**
    * Among other things, it should be possible to instantiate F[_] with an fs2 Pull,
@@ -341,6 +341,12 @@ object Parser {
   }
 
   final case class Apply[A, +B](target: Parser[A], f: (List[Line], A) => List[B]) extends Parser[B] {
+
+    override def map[C](f2: B => C): Parser[C] =
+      Parser.Apply(target, { (lines, a: A) => f(lines, a) map f2 })
+
+    override def mapWithLines[C](f2: (List[Line], B) => C): Parser[C] =
+      Parser.Apply(target, { (lines, a: A) => f(lines, a) map { f2(lines, _) } })
 
     protected def _derive(line: Line): Parser[B] =
       Apply(target derive line, f)
