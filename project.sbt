@@ -55,7 +55,7 @@ licenses in ThisBuild += ("Apache-2.0", url("http://www.apache.org/licenses/"))
 
 bintrayVcsUrl in ThisBuild := Some("git@github.com:djspiewak/parseback.git")
 
-credentials in bintray := {
+credentials in bintray in ThisBuild := {
   if (isTravisBuild.value)
     Nil
   else
