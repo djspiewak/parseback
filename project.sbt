@@ -55,13 +55,6 @@ licenses in ThisBuild += ("Apache-2.0", url("http://www.apache.org/licenses/"))
 
 bintrayVcsUrl in ThisBuild := Some("git@github.com:djspiewak/parseback.git")
 
-credentials in bintray in ThisBuild := {
-  if (isTravisBuild.value)
-    Nil
-  else
-    (credentials in bintray).value
-}
-
 publish := ()
 publishLocal := ()
 publishArtifact := false
@@ -71,16 +64,27 @@ val coursierSettings = Seq(
   coursierChecksums := Nil      // workaround for nexus sync bugs
 )
 
+val bintraySettings = Seq(
+  credentials in bintray := {
+    if (isTravisBuild.value)
+      Nil
+    else
+      (credentials in bintray).value
+  }
+)
+
 lazy val root = project
   .in(file("."))
   .aggregate(core)
   .settings(coursierSettings: _*)
+  .settings(bintraySettings: _*)
 
 lazy val core = project
   .in(file("core"))
   .settings(
     name := "parseback-core")
   .settings(coursierSettings: _*)
+  .settings(bintraySettings: _*)
 
 /***********************************************************************\
                       Boilerplate below these lines
