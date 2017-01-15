@@ -124,7 +124,7 @@ object Renderer {
         }
       } yield back
 
-    case Apply(target, _) =>
+    case Apply(target, _, _) =>
       State pure (-\/(target) :: \/-("↪") :: \/-("λ") :: Nil)
 
     case Literal(literal, offset) =>

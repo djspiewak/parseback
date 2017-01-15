@@ -92,7 +92,7 @@ sealed trait Parser[+A] {
             p.nullableMemo = inner(p.left, tracked2) || inner(p.right, tracked2)
             p.nullableMemo
 
-          case p @ Apply(target, _) =>
+          case p @ Apply(target, _, _) =>
             p.nullableMemo = inner(target, tracked + p)
             p.nullableMemo
 
@@ -213,19 +213,19 @@ object Parser {
     }
   }
 
-  final case class Apply[A, +B](target: Parser[A], f: (List[Line], A) => List[B]) extends Parser[B] {
+  final case class Apply[A, +B](target: Parser[A], f: (List[Line], A) => List[B], lines: Vector[Line] = Vector.empty) extends Parser[B] {
 
     override def map[C](f2: B => C): Parser[C] =
-      Parser.Apply(target, { (lines, a: A) => f(lines, a) map f2 })
+      Apply(target, { (lines, a: A) => f(lines, a) map f2 }, lines)
 
     override def mapWithLines[C](f2: (List[Line], B) => C): Parser[C] =
-      Parser.Apply(target, { (lines, a: A) => f(lines, a) map { f2(lines, _) } })
+      Apply(target, { (lines, a: A) => f(lines, a) map { f2(lines, _) } }, lines)
 
     protected def _derive(line: Line): Parser[B] =
-      Apply(target derive line, f)
+      Apply(target derive line, f, lines :+ line)
 
     protected def _finish(seen: Set[Parser[_]]) =
-      target finish seen map { rs => rs flatMap { f(Nil, _) } }   // TODO line accumulation used here!
+      target finish seen map { rs => rs flatMap { f(lines.toList, _) } }
   }
 
   final case class Literal(literal: String, offset: Int = 0)(implicit W: Whitespace) extends Parser[String] {
