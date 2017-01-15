@@ -35,17 +35,17 @@ sealed trait Parser[+A] {
 
   def map[B](f: A => B): Parser[B] = Parser.Apply(this, { (_, a: A) => f(a) :: Nil })
 
-  def map2[B, C](that: Parser[B])(f: (A, B) => C): Parser[C] = (this ~ that) map f.tupled
+  final def map2[B, C](that: Parser[B])(f: (A, B) => C): Parser[C] = (this ~ that) map f.tupled
 
-  def ~[B](that: Parser[B]): Parser[A ~ B] = Parser.Sequence(this, that)
+  final def ~[B](that: Parser[B]): Parser[A ~ B] = Parser.Sequence(this, that)
 
-  def ~>[B](that: Parser[B]): Parser[B] =
+  final def ~>[B](that: Parser[B]): Parser[B] =
     (this ~ that) map { case _ ~ b => b }
 
-  def <~[B](that: Parser[B]): Parser[A] =
+  final def <~[B](that: Parser[B]): Parser[A] =
     (this ~ that) map { case a ~ _ => a }
 
-  def ^^^[B](b: B): Parser[B] = map { _ => b }
+  final def ^^^[B](b: B): Parser[B] = map { _ => b }
 
   def mapWithLines[B](f: (List[Line], A) => B): Parser[B] =
     Parser.Apply(this, { (line, a: A) => f(line, a) :: Nil })
@@ -57,7 +57,7 @@ sealed trait Parser[+A] {
    * effect it is in) into a Stream[Task, Line], which could then in turn be converted
    * pretty trivially into a Pull[Task, LineStream, Nothing].
    */
-  def apply[F[+_]: Monad](ls: LineStream[F]): F[List[ParseError] \/ List[A]] = {
+  final def apply[F[+_]: Monad](ls: LineStream[F]): F[List[ParseError] \/ List[A]] = {
     ls.normalize flatMap {
       case LineStream.More(line, tail) =>
         trace(s"current line = ${line.project}")
