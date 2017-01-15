@@ -42,6 +42,9 @@ package object parseback {
   implicit def literal(str: String)(implicit W: Whitespace): Parser[String] =
     Parser.Literal(str, 0)
 
+  implicit def literalUnion(str: String)(implicit W: Whitespace): LazyParserSyntax[String] =
+    LazyParserSyntax(literal(str))
+
   implicit def regex(r: SRegex)(implicit W: Whitespace): Parser[String] =
     Parser.Regex(r)
 
