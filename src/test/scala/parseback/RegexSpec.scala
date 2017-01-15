@@ -36,5 +36,21 @@ object RegexSpec extends ParsebackSpec {
 
       expr should parseOk("1+2")(3)
     }
+
+    "handle a simple arithmetic grammar with whitespace" in {
+      implicit val W = Whitespace("""\s+""".r)
+
+      lazy val expr: Parser[Int] = (
+          expr ~ "+" ~ expr ^^ {
+            case (_, (a ~ _ ~ b)) => a + b
+          }
+        | expr ~ "-" ~ expr ^^ {
+            case (_, (a ~ _ ~ b)) => a - b
+          }
+        | """\d+""".r ^^ { (_, str) => str.toInt }
+      )
+
+      expr should parseOk("1 + 2")(3)
+    }
   }
 }

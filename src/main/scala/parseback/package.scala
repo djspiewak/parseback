@@ -39,10 +39,10 @@ package object parseback {
   type ~[+A, +B] = (A, B)
   val ~ = Tuple2
 
-  implicit def literal(str: String): Parser[String] =
+  implicit def literal(str: String)(implicit W: Whitespace): Parser[String] =
     Parser.Literal(str, 0)
 
-  implicit def regex(r: SRegex): Parser[String] =
+  implicit def regex(r: SRegex)(implicit W: Whitespace): Parser[String] =
     Parser.Regex(r)
 
   implicit def unit(u: Unit): Parser[Unit] =

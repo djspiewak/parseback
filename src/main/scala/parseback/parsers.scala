@@ -353,20 +353,26 @@ object Parser {
       State pure (-\/(target) :: \/-("↪") :: \/-("λ") :: Nil)
   }
 
-  final case class Literal(literal: String, offset: Int = 0) extends Parser[String] {
+  final case class Literal(literal: String, offset: Int = 0)(implicit W: Whitespace) extends Parser[String] {
     require(literal.length > 0)
     require(offset < literal.length)
 
     nullableMemo = Nullable.False
 
     protected def _derive(line: Line): Parser[String] = {
-      if (literal.charAt(offset) == line.head) {
-        if (offset == literal.length - 1)
-          Epsilon(literal)
-        else
-          Literal(literal, offset + 1)
-      } else {
-        Failure(ParseError.UnexpectedCharacter(line) :: Nil)
+      W stripLeading line match {
+        case Some(_) =>
+          this
+
+        case None =>
+          if (literal.charAt(offset) == line.head) {
+            if (offset == literal.length - 1)
+              Epsilon(literal)
+            else
+              Literal(literal, offset + 1)
+          } else {
+            Failure(ParseError.UnexpectedCharacter(line) :: Nil)
+          }
       }
     }
 
@@ -378,22 +384,32 @@ object Parser {
   }
 
   // note that regular expressions cannot cross line boundaries
-  final case class Regex(r: SRegex) extends Parser[String] {
+  final case class Regex(r: SRegex)(implicit W: Whitespace) extends Parser[String] {
     require(!r.pattern.matcher("").matches)
 
     nullableMemo = Nullable.False
 
     protected def _derive(line: Line): Parser[String] = {
-      val m = r findPrefixOf line.project
+      W stripLeading line match {
+        case Some(line2) =>
+          val m = r findPrefixOf line2.project
 
-      val success = m map { lit =>
-        if (lit.length == 1)
-          Epsilon(lit)
-        else
-          Literal(lit, 1)
+          val success = m map { Literal(_) }
+
+          success getOrElse Failure(ParseError.UnexpectedCharacter(line2) :: Nil)
+
+        case None =>
+          val m = r findPrefixOf line.project
+
+          val success = m map { lit =>
+            if (lit.length == 1)
+              Epsilon(lit)
+            else
+              Literal(lit, 1)(Whitespace.Default)     // don't re-strip within a token
+          }
+
+          success getOrElse Failure(ParseError.UnexpectedCharacter(line) :: Nil)
       }
-
-      success getOrElse Failure(ParseError.UnexpectedCharacter(line) :: Nil)
     }
 
     protected def _finish(seen: Set[Parser[_]]) =
