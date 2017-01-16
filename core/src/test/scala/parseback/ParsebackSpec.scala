@@ -22,7 +22,7 @@ import org.specs2.specification.SpecificationFeatures
 
 trait ParsebackSpec extends Spec with SpecificationFeatures {
 
-  final def parseOk[A](input: String)(results: A*): Matcher[Parser[A]] = { p: Parser[A] =>
+  final def parseOk[A](input: String)(results: A*)(implicit W: Whitespace): Matcher[Parser[A]] = { p: Parser[A] =>
     val maybeResults = p(LineStream(input)).value
 
     maybeResults match {
@@ -42,7 +42,7 @@ trait ParsebackSpec extends Spec with SpecificationFeatures {
     }
   }
 
-  final def failToParse(input: String)(errors: ParseError*): Matcher[Parser[_]] = { p: Parser[_] =>
+  final def failToParse(input: String)(errors: ParseError*)(implicit W: Whitespace): Matcher[Parser[_]] = { p: Parser[_] =>
     val maybeResults = p(LineStream(input)).value
 
     maybeResults match {

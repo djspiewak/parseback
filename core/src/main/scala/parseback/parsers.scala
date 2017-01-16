@@ -52,22 +52,49 @@ sealed trait Parser[+A] {
    * A prerequisite step would be to convert a Stream[Task, Bytes] (or whatever format and
    * effect it is in) into a Stream[Task, Line], which could then in turn be converted
    * pretty trivially into a Pull[Task, LineStream, Nothing].
+   *
+   * Please note that F[_] should be lazy and stack-safe.  If F[_] is not stack-safe,
+   * this function will SOE on inputs with a very large number of lines.
    */
-  final def apply[F[+_]: Monad](ls: LineStream[F]): F[List[ParseError] \/ List[A]] = {
-    ls.normalize flatMap {
-      case LineStream.More(line, tail) =>
+  final def apply[F[+_]: Monad](ls: LineStream[F])(implicit W: Whitespace): F[List[ParseError] \/ List[A]] = {
+    import LineStream._
+
+    def stripTrailing(r: SRegex)(ls: LineStream[F]): F[LineStream[F]] = ls match {
+      case More(line, tail) =>
+        tail map {
+          case ls @ More(_, _) =>
+            More(line, stripTrailing(r)(ls))
+
+          case Empty() =>
+            val base2 = r.replaceAllIn(line.base, "")
+            More(Line(base2, line.lineNo, line.colNo), Monad[F] pure Empty[F]())
+        }
+
+      case Empty() => Monad[F] pure Empty[F]()
+    }
+
+    def inner(self: Parser[A])(ls: LineStream[F]): F[List[ParseError] \/ List[A]] = ls match {
+      case More(line, tail) =>
         trace(s"current line = ${line.project}")
-        val derivation = derive(line)
+        val derivation = self derive line
 
         val ls2: F[LineStream[F]] = line.next map { l =>
-          Monad[F].pure(LineStream.More(l, tail))
+          Monad[F] pure More(l, tail)
         } getOrElse tail
 
-        ls2 flatMap { derivation(_) }
+        ls2 flatMap inner(derivation)
 
-      case LineStream.Empty() =>
-        Monad[F].pure(finish(Set()))
+      case Empty() =>
+        Monad[F] pure (self finish Set())
     }
+
+    val recompiled =
+      Some(s"""${W.regex.toString}$$"""r) filter { _ => W.regex.toString != "" }
+
+    val stripper =
+      recompiled map stripTrailing getOrElse { ls: LineStream[F] => Monad[F] pure ls }
+
+    stripper(ls) flatMap { _.normalize } flatMap inner(this)
   }
 
   protected final def isNullable: Boolean = {
