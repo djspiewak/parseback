@@ -18,16 +18,16 @@ Parseback is a Scala implementation of [parsing with derivatives](http://matt.mi
 ```sbt
 resolvers += "bintray-djspiewak-maven" at "http://dl.bintray.com/djspiewak/maven"
 
+val ParsebackVersion = "0.1"
+
 libraryDependencies += "com.codecommit" %% "parseback-core" % ParsebackVersion
 ```
 
-At the present time, the only released versions are snapshots.  If you're feeling extremely brave (or foolish), you can try the following snapshot:
+The current, "stable" version of parseback is 0.1.  Cross builds are available for Scala 2.12, 2.11 and 2.10.  I say "stable" in scare-quotes because this should obviously be considered fairly experimental software.  It's just barely stable enough that I'm willing to call it an "0.x" release.
 
-```sbt
-val ParsebackVersion = "0.1-be2e240"
-```
+All stable, numbered releases are signed with [my key](https://keybase.io/djspiewak).
 
-Cross builds are available for Scala 2.12, 2.11 and 2.10.
+Snapshots are intermittently available.  All snapshots are of the form `[version]-[hash]`, where `[version]` is the *compatible* base version (i.e. the stable version with which the snapshot is compatible).  If that base version is unreleased (i.e. a future release), then full compatibility with the ultimate release is not necessarily guaranteed.  `[hash]` is a seven character prefix of the Git hash from which the snapshot release was made.  Feel free to [make snapshots of your own!](#forks-and-releases).
 
 ## Examples
 
