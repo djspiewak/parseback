@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-libraryDependencies += "org.typelevel" %% "cats-core" % "0.8.+"
+libraryDependencies += "org.typelevel" %% "cats-core" % "0.9.0"
 
 libraryDependencies += "org.specs2" %% "specs2-core" % "3.8.6" % Test
 
