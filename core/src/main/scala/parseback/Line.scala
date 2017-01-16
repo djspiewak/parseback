@@ -31,4 +31,7 @@ final case class Line(base: String, lineNo: Int = 0, colNo: Int = 0) {
 
   def next: Option[Line] =
     Some(Line(base, lineNo, colNo + 1)) filter (!_.isEmpty)
+
+  def isBefore(that: Line): Boolean =
+    this.lineNo < that.lineNo || (this.lineNo == that.lineNo && this.colNo < that.colNo)
 }

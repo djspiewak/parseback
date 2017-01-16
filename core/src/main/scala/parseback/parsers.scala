@@ -17,7 +17,6 @@
 package parseback
 
 import cats.{Applicative, Monad}
-import cats.instances.either._
 import cats.syntax.all._
 
 import scala.util.matching.{Regex => SRegex}
@@ -177,13 +176,11 @@ object Parser {
       if (left.isNullable) {
         lazy val nonNulled = left.derive(line) ~ right
 
-        lazy val nulled = left.finish(Set()) match {
-          case -\/(errs) => Failure(errs)     // take the left errors
+        left.finish(Set()) match {
+          case -\/(_) => nonNulled
           case \/-(results) =>
-            Apply(right.derive(line), { (_, b: B) => results map { (_, b) } })
+            nonNulled | Apply(right.derive(line), { (_, b: B) => results map { (_, b) } })
         }
-
-        nonNulled | nulled
       } else {
         left.derive(line) ~ right
       }
@@ -206,10 +203,17 @@ object Parser {
     protected def _finish(seen: Set[Parser[_]]) = {
       val lf = left finish seen
       val rf = right finish seen
-      val both = (lf map2 rf) { _ ++ _ }
 
-      // TODO correctly merge errors in the event that both sides fail
-      both orElse lf orElse rf
+      (lf, rf) match {
+        case (-\/(lErr), -\/(rErr)) =>
+          -\/(ParseError.prioritize(lErr ::: rErr))
+
+        case (\/-(lRes), \/-(rRes)) =>
+          \/-(lRes ::: rRes)
+
+        case _ =>
+          lf orElse rf
+      }
     }
   }
 
@@ -246,13 +250,13 @@ object Parser {
             else
               Literal(literal, offset + 1)
           } else {
-            Failure(ParseError.UnexpectedCharacter(line) :: Nil)
+            Failure(ParseError.UnexpectedCharacter(line, (literal substring offset) :: Nil) :: Nil)
           }
       }
     }
 
     protected def _finish(seen: Set[Parser[_]]) =
-      -\/(ParseError.UnexpectedEOF :: Nil)
+      -\/(ParseError.UnexpectedEOF((literal substring offset) :: Nil) :: Nil)
   }
 
   // note that regular expressions cannot cross line boundaries
@@ -268,7 +272,7 @@ object Parser {
 
           val success = m map { Literal(_) }
 
-          success getOrElse Failure(ParseError.UnexpectedCharacter(line2) :: Nil)
+          success getOrElse Failure(ParseError.UnexpectedCharacter(line2, r.toString :: Nil) :: Nil)
 
         case None =>
           val m = r findPrefixOf line.project
@@ -280,12 +284,12 @@ object Parser {
               Literal(lit, 1)(Whitespace.Default)     // don't re-strip within a token
           }
 
-          success getOrElse Failure(ParseError.UnexpectedCharacter(line) :: Nil)
+          success getOrElse Failure(ParseError.UnexpectedCharacter(line, r.toString :: Nil) :: Nil)
       }
     }
 
     protected def _finish(seen: Set[Parser[_]]) =
-      -\/(ParseError.UnexpectedEOF :: Nil)
+      -\/(ParseError.UnexpectedEOF(r.toString :: Nil) :: Nil)
   }
 
   final case class Epsilon[+A](value: A) extends Parser[A] {

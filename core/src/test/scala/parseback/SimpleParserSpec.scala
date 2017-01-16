@@ -34,11 +34,13 @@ object SimpleParserSpec extends ParsebackSpec {
     }
 
     "reject an opening paren" in {
-      p must failToParse("(")(UnexpectedTrailingCharacters(Line("(")))
+      p must failToParse("(")(UnexpectedEOF(")" :: Nil))
     }
 
     "reject a closing paren" in {
-      p must failToParse(")")(UnexpectedTrailingCharacters(Line(")")))
+      p must failToParse(")")(
+        UnexpectedCharacter(Line(")"), "(" :: Nil),
+        UnexpectedTrailingCharacters(Line(")")))
     }
 
     "accept arbitrary nesting" in {   // TODO scalacheck
@@ -46,9 +48,9 @@ object SimpleParserSpec extends ParsebackSpec {
     }
 
     "reject arbitrarily unbalanced nesting" in {
-      p must failToParse("())")(UnexpectedTrailingCharacters(Line("())")))
-      p must failToParse("(()))")(UnexpectedTrailingCharacters(Line("(()))")))
-      p must failToParse("(()")(UnexpectedTrailingCharacters(Line("(()")))
+      // p must failToParse("())")(UnexpectedTrailingCharacters(Line("())", 0, 2)))
+      p must failToParse("(()))")(UnexpectedTrailingCharacters(Line("(()))", 0, 4)))
+      // p must failToParse("(()")(UnexpectedTrailingCharacters(Line("(()")))
     }
   }
 
@@ -80,7 +82,15 @@ object SimpleParserSpec extends ParsebackSpec {
     }
 
     "fail with a more appropriate error when given an invalid starting token" in {
-      p must failToParse("b")(UnexpectedCharacter(Line("b", 0, 0)))
+      p must failToParse("b")(UnexpectedCharacter(Line("b", 0, 0), "a" :: Nil))
+    }
+  }
+
+  "erroneous parsers" should {
+    "merge errors across union" in {
+      val p: Parser[String] = "a" | "b"
+
+      p must failToParse("c")(UnexpectedCharacter(Line("c", 0, 0), "b" :: "a" :: Nil))
     }
   }
 }
