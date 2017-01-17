@@ -17,8 +17,8 @@
 libraryDependencies ++= Seq(
   "org.typelevel"  %% "cats-core"         % "0.9.0",
   "org.scalacheck" %% "scalacheck"        % "1.13.4" % Test,
-  "org.specs2"     %% "specs2-core"       % "3.8.6"  % Test,
-  "org.specs2"     %% "specs2-scalacheck" % "3.8.6"  % Test
+  "org.specs2"     %% "specs2-core"       % Versions.Specs  % Test,
+  "org.specs2"     %% "specs2-scalacheck" % Versions.Specs  % Test
 )
 
 initialCommands := "import parseback._"
