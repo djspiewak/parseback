@@ -62,7 +62,7 @@ object ParseError {
         val eofs = sorted takeWhile { _.isInstanceOf[UnexpectedEOF] }
         val err = eofs.reduceOption[ParseError] {
           case ((UnexpectedEOF(exp1), UnexpectedEOF(exp2))) =>
-            UnexpectedEOF(exp1 ::: exp2)
+            UnexpectedEOF(exp1 ++ exp2)
 
           case _ => sys.error("impossible")
         }
@@ -82,7 +82,7 @@ object ParseError {
 
         val reducedChars = left.reduceOption[ParseError] {
           case ((UnexpectedCharacter(loc, exp1), UnexpectedCharacter(_, exp2))) =>
-            UnexpectedCharacter(loc, exp1 ::: exp2)
+            UnexpectedCharacter(loc, exp1 ++ exp2)
 
           case _ => sys.error("impossible")
         }
@@ -97,7 +97,7 @@ object ParseError {
   }
 
   final case class UnexpectedTrailingCharacters(loc: Line) extends WithLoc
-  final case class UnexpectedCharacter(loc: Line, expected: List[String]) extends WithLoc
-  final case class UnexpectedEOF(expected: List[String]) extends ParseError
+  final case class UnexpectedCharacter(loc: Line, expected: Set[String]) extends WithLoc
+  final case class UnexpectedEOF(expected: Set[String]) extends ParseError
   final case class UnboundedRecursion(parser: Parser[_]) extends Meta
 }

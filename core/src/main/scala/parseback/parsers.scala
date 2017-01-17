@@ -277,13 +277,13 @@ object Parser {
             else
               Literal(literal, offset + 1)
           } else {
-            Failure(ParseError.UnexpectedCharacter(line, (literal substring offset) :: Nil) :: Nil)
+            Failure(ParseError.UnexpectedCharacter(line, Set(literal substring offset)) :: Nil)
           }
       }
     }
 
     protected def _finish(seen: Set[Parser[_]]) =
-      -\/(ParseError.UnexpectedEOF((literal substring offset) :: Nil) :: Nil)
+      -\/(ParseError.UnexpectedEOF(Set(literal substring offset)) :: Nil)
   }
 
   // note that regular expressions cannot cross line boundaries
@@ -299,7 +299,7 @@ object Parser {
 
           val success = m map { Literal(_) }
 
-          success getOrElse Failure(ParseError.UnexpectedCharacter(line2, r.toString :: Nil) :: Nil)
+          success getOrElse Failure(ParseError.UnexpectedCharacter(line2, Set(r.toString)) :: Nil)
 
         case None =>
           val m = r findPrefixOf line.project
@@ -311,12 +311,12 @@ object Parser {
               Literal(lit, 1)(Whitespace.Default)     // don't re-strip within a token
           }
 
-          success getOrElse Failure(ParseError.UnexpectedCharacter(line, r.toString :: Nil) :: Nil)
+          success getOrElse Failure(ParseError.UnexpectedCharacter(line, Set(r.toString)) :: Nil)
       }
     }
 
     protected def _finish(seen: Set[Parser[_]]) =
-      -\/(ParseError.UnexpectedEOF(r.toString :: Nil) :: Nil)
+      -\/(ParseError.UnexpectedEOF(Set(r.toString)) :: Nil)
   }
 
   final case class Epsilon[+A](value: A) extends Parser[A] {

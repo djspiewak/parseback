@@ -34,12 +34,12 @@ object SimpleParserSpec extends ParsebackSpec {
     }
 
     "reject an opening paren" in {
-      p must failToParse("(")(UnexpectedEOF(")" :: Nil))
+      p must failToParse("(")(UnexpectedEOF(Set(")")))
     }
 
     "reject a closing paren" in {
       p must failToParse(")")(
-        UnexpectedCharacter(Line(")"), "(" :: Nil),
+        UnexpectedCharacter(Line(")"), Set("(")),
         UnexpectedTrailingCharacters(Line(")")))
     }
 
@@ -82,7 +82,7 @@ object SimpleParserSpec extends ParsebackSpec {
     }
 
     "fail with a more appropriate error when given an invalid starting token" in {
-      p must failToParse("b")(UnexpectedCharacter(Line("b", 0, 0), "a" :: Nil))
+      p must failToParse("b")(UnexpectedCharacter(Line("b", 0, 0), Set("a")))
     }
   }
 
@@ -90,7 +90,13 @@ object SimpleParserSpec extends ParsebackSpec {
     "merge errors across union" in {
       val p: Parser[String] = "a" | "b"
 
-      p must failToParse("c")(UnexpectedCharacter(Line("c", 0, 0), "b" :: "a" :: Nil))
+      p must failToParse("c")(UnexpectedCharacter(Line("c", 0, 0), Set("b", "a")))
+    }
+
+    "merge errors unambiguously" in {
+      val p: Parser[String] = "a" | "b" | "a"
+
+      p must failToParse("c")(UnexpectedCharacter(Line("c", 0, 0), Set("b", "a")))
     }
   }
 }
