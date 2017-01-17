@@ -16,8 +16,7 @@
 
 package parseback
 
-import cats.{Eval, Monad, Now}
-import cats.syntax.all._
+import shims.{Applicative, Monad}
 
 // a head-tail stream of [[Line]]s, with the tail computed in effect F[_]
 sealed trait LineStream[F[+_]] extends Product with Serializable {
@@ -30,29 +29,31 @@ sealed trait LineStream[F[+_]] extends Product with Serializable {
    */
   final def normalize(implicit F: Monad[F]): F[LineStream[F]] = this match {
     case More(line, tail) if line.isEmpty =>
-      tail flatMap { _.normalize }
+      F.flatMap(tail) { _.normalize }
 
-    case m @ More(_, _) => F pure m
+    case m @ More(_, _) => F point m
 
-    case Empty() => F pure Empty()
+    case Empty() => F point Empty()
   }
 }
 
 object LineStream {
 
-  def apply(str: String): LineStream[Eval] = {
+  def apply[F[+_]: Applicative](str: String): LineStream[F] = {
     val splits = str split """\r|\r?\n"""
     val (front, last) = splits splitAt (splits.length - 1)
 
     apply((front map { _ + "\n" }) ++ last)
   }
 
-  def apply(lines: Seq[String]): LineStream[Eval] = {
+  def apply[F[+_]: Applicative](lines: Seq[String]): LineStream[F] = {
     val actuals = lines.zipWithIndex map {
       case (str, lineNo) => Line(str, lineNo, 0)
     }
 
-    actuals.foldRight(Empty(): LineStream[Eval]) { (line, tail) => More(line, Now(tail)) }
+    actuals.foldRight(Empty(): LineStream[F]) { (line, tail) =>
+      More(line, Applicative[F].point(tail))
+    }
   }
 
   final case class More[F[+_]](line: Line, tail: F[LineStream[F]]) extends LineStream[F]

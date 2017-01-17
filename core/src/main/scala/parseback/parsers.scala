@@ -16,8 +16,7 @@
 
 package parseback
 
-import cats.{Applicative, Monad}
-import cats.syntax.all._
+import shims.{Applicative, Monad}
 
 import scala.util.matching.{Regex => SRegex}
 
@@ -61,16 +60,16 @@ sealed trait Parser[+A] {
 
     def stripTrailing(r: SRegex)(ls: LineStream[F]): F[LineStream[F]] = ls match {
       case More(line, tail) =>
-        tail map {
+        Monad[F].map(tail) {
           case ls @ More(_, _) =>
             More(line, stripTrailing(r)(ls))
 
           case Empty() =>
             val base2 = r.replaceAllIn(line.base, "")
-            More(Line(base2, line.lineNo, line.colNo), Monad[F] pure Empty[F]())
+            More(Line(base2, line.lineNo, line.colNo), Monad[F] point Empty[F]())
         }
 
-      case Empty() => Monad[F] pure Empty[F]()
+      case Empty() => Monad[F] point Empty[F]()
     }
 
     def inner(self: Parser[A])(ls: LineStream[F]): F[List[ParseError] \/ List[A]] = ls match {
@@ -79,22 +78,24 @@ sealed trait Parser[+A] {
         val derivation = self derive line
 
         val ls2: F[LineStream[F]] = line.next map { l =>
-          Monad[F] pure More(l, tail)
+          Monad[F] point More(l, tail)
         } getOrElse tail
 
-        ls2 flatMap inner(derivation)
+        Monad[F].flatMap(ls2)(inner(derivation))
 
       case Empty() =>
-        Monad[F] pure (self finish Set())
+        Monad[F] point (self finish Set())
     }
 
     val recompiled =
       Some(s"""${W.regex.toString}$$"""r) filter { _ => W.regex.toString != "" }
 
     val stripper =
-      recompiled map stripTrailing getOrElse { ls: LineStream[F] => Monad[F] pure ls }
+      recompiled map stripTrailing getOrElse { ls: LineStream[F] => Monad[F] point ls }
 
-    stripper(ls) flatMap { _.normalize } flatMap inner(this)
+    val prepped = Monad[F].flatMap(stripper(ls)) { _.normalize }
+
+    Monad[F].flatMap(prepped)(inner(this))
   }
 
   protected final def isNullable: Boolean = {
@@ -193,8 +194,9 @@ sealed trait Parser[+A] {
 object Parser {
 
   implicit val applicative: Applicative[Parser] = new Applicative[Parser] {
-    def pure[A](a: A): Parser[A] = Epsilon(a)
-    def ap[A, B](ff: Parser[A => B])(fa: Parser[A]): Parser[B] = (ff map2 fa) { _(_) }
+    def point[A](a: A): Parser[A] = Epsilon(a)
+    def ap[A, B](fa: Parser[A])(ff: Parser[A => B]): Parser[B] = (ff map2 fa) { _(_) }
+    def map[A, B](fa: Parser[A])(f: A => B): Parser[B] = fa map f
   }
 
   final case class Sequence[+A, +B](left: Parser[A], right: Parser[B]) extends Parser[A ~ B] {
@@ -239,7 +241,7 @@ object Parser {
           \/-(lRes ::: rRes)
 
         case _ =>
-          lf orElse rf
+          lf.fold(_ => rf, v => \/-(v))
       }
     }
   }
