@@ -21,6 +21,10 @@ resolvers += "bintray-djspiewak-maven" at "http://dl.bintray.com/djspiewak/maven
 val ParsebackVersion = "0.1"
 
 libraryDependencies += "com.codecommit" %% "parseback-core" % ParsebackVersion
+
+libraryDependencies += "com.codecommit" %% "parseback-cats" % ParsebackVersion
+// or!
+libraryDependencies += "com.codecommit" %% "parseback-scalaz-72" % ParsebackVersion
 ```
 
 The current, "stable" version of parseback is 0.1.  Cross builds are available for Scala 2.12, 2.11 and 2.10.  I say "stable" in scare-quotes because this should obviously be considered fairly experimental software.  It's just barely stable enough that I'm willing to call it an "0.x" release.
@@ -28,6 +32,8 @@ The current, "stable" version of parseback is 0.1.  Cross builds are available f
 All stable, numbered releases are signed with [my key](https://keybase.io/djspiewak).
 
 Snapshots are intermittently available.  All snapshots are of the form `[version]-[hash]`, where `[version]` is the *compatible* base version (i.e. the stable version with which the snapshot is compatible).  If that base version is unreleased (i.e. a future release), then full compatibility with the ultimate release is not necessarily guaranteed.  `[hash]` is a seven character prefix of the Git hash from which the snapshot release was made.  Feel free to [make snapshots of your own!](#forks-and-releases).
+
+Note that the `-cats`/`-scalaz-72` artifacts were not required prior to snapshot `0.2-caf7787`.  This snapshot was compiled and published against [shims](https://github.com/djspiewak/shims) version `0.4.1-cf0a86b`.
 
 ## Examples
 
