@@ -17,3 +17,7 @@ cache:
 
 jdk:
   - oraclejdk8
+
+env:
+  global:
+    - COURSIER_PROGRESS=0
