@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
+libraryDependencies += "com.codecommit" %% "shims-core" % Versions.Shims
+
 libraryDependencies ++= Seq(
-  "org.typelevel"  %% "cats-core"         % "0.9.0",
-  "org.scalacheck" %% "scalacheck"        % "1.13.4" % Test,
+  "com.codecommit" %% "shims-cats"        % Versions.Shims  % Test,
+
+  "org.scalacheck" %% "scalacheck"        % "1.13.4"        % Test,
   "org.specs2"     %% "specs2-core"       % Versions.Specs  % Test,
-  "org.specs2"     %% "specs2-scalacheck" % Versions.Specs  % Test
-)
+  "org.specs2"     %% "specs2-scalacheck" % Versions.Specs  % Test)
 
 initialCommands := "import parseback._"
 

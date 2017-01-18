@@ -30,7 +30,7 @@ object RegexSpec extends ParsebackSpec {
         | """\d+""".r ^^ { (_, str) => str.toInt }
       )
 
-      expr should parseOk("1+2")(3)
+      expr must parseOk("1+2")(3)
     }
 
     "handle a simple arithmetic grammar with whitespace" in {
@@ -42,7 +42,7 @@ object RegexSpec extends ParsebackSpec {
         | """\d+""".r ^^ { (_, str) => str.toInt }
       )
 
-      expr should parseOk("1 + 2")(3)
+      expr must parseOk("1 + 2")(3)
     }
 
     "handle a simple arithmetic grammar with trailing whitespace" in {
@@ -54,7 +54,7 @@ object RegexSpec extends ParsebackSpec {
         | """\d+""".r ^^ { (_, str) => str.toInt }
       )
 
-      expr should parseOk("1 + 2   ")(3)
+      expr must parseOk("1 + 2   ")(3)
     }
   }
 }

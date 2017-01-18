@@ -14,16 +14,9 @@
  * limitations under the License.
  */
 
-import scala.util.{Either, Left, Right}
 import scala.util.matching.{Regex => SRegex}
 
 package object parseback {
-
-  // internal convenience utilities
-  private[parseback] type \/[+A, +B] = Either[A, B]
-
-  private[parseback] val -\/ = Left
-  private[parseback] val \/- = Right
 
   // TODO macroize
   private[parseback] def trace(str: => String): Unit = {

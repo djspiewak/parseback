@@ -22,6 +22,8 @@ import cats.instances.option._
 import cats.data.State
 import cats.syntax.all._
 
+import util.EitherSyntax._
+
 object Renderer {
   import Parser._
 
@@ -156,7 +158,7 @@ object Renderer {
   }
 
   private final def assignLabel(labels: Set[String]): (Set[String], String) = {
-    val candidate = PossibleLabels(util.Random.nextInt(PossibleLabels.length))
+    val candidate = PossibleLabels(scala.util.Random.nextInt(PossibleLabels.length))
 
     if (labels contains candidate)
       assignLabel(labels)
