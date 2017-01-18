@@ -75,7 +75,7 @@ val bintraySettings = Seq(
 
 lazy val root = project
   .in(file("."))
-  .aggregate(core, render)
+  .aggregate(core, render, cats, scalaz72)
   .settings(coursierSettings: _*)
   .settings(bintraySettings: _*)
 
