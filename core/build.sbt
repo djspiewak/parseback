@@ -16,7 +16,9 @@
 
 libraryDependencies += "com.codecommit" %% "shims-core" % Versions.Shims
 
-libraryDependencies += "org.specs2" %% "specs2-core" % "3.8.6" % Test
+libraryDependencies ++= Seq(
+  "com.codecommit" %% "shims-cats" % Versions.Shims % Test,
+  "org.specs2" %% "specs2-core" % "3.8.6" % Test)
 
 initialCommands := "import parseback._"
 

@@ -14,16 +14,8 @@
  * limitations under the License.
  */
 
-package parseback
-package render
+package parseback.util
 
-import util.EitherSyntax._
+import shims.syntax.either
 
-sealed trait RenderResult extends Product with Serializable
-
-object RenderResult {
-  type TokenSequence = List[Parser[_] \/ String]
-
-  final case class Nonterminal(label: String, branches: List[Parser[_]]) extends RenderResult
-  final case class Tokens(contents: TokenSequence) extends RenderResult
-}
+private[parseback] object EitherSyntax extends either

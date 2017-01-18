@@ -16,14 +16,18 @@
 
 package parseback
 
+import cats.Eval
+
 import org.specs2.matcher.Matcher
 import org.specs2.mutable._
 import org.specs2.specification.SpecificationFeatures
 
-trait ParsebackSpec extends Spec with SpecificationFeatures {
+import util.EitherSyntax._
+
+trait ParsebackSpec extends Spec with SpecificationFeatures with shims.Implicits {
 
   final def parseOk[A](input: String)(results: A*)(implicit W: Whitespace): Matcher[Parser[A]] = { p: Parser[A] =>
-    val maybeResults = p(LineStream(input)).value
+    val maybeResults = p(LineStream[Eval](input)).value
 
     maybeResults match {
       case \/-(actual) =>
@@ -43,7 +47,7 @@ trait ParsebackSpec extends Spec with SpecificationFeatures {
   }
 
   final def failToParse(input: String)(errors: ParseError*)(implicit W: Whitespace): Matcher[Parser[_]] = { p: Parser[_] =>
-    val maybeResults = p(LineStream(input)).value
+    val maybeResults = p(LineStream[Eval](input)).value
 
     maybeResults match {
       case \/-(results) =>

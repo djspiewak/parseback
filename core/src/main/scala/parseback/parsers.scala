@@ -20,6 +20,8 @@ import shims.{Applicative, Monad}
 
 import scala.util.matching.{Regex => SRegex}
 
+import util.EitherSyntax._
+
 sealed trait Parser[+A] {
 
   // non-volatile on purpose!  parsers are not expected to cross thread boundaries during a single step
@@ -175,7 +177,8 @@ sealed trait Parser[+A] {
     } else if (finishMemo == null) {
       val back = _finish(seen + this)
 
-      back foreach { results =>
+      // map = foreach (apparently)
+      back map { results =>
         finishMemo = results
       }
 
