@@ -301,8 +301,11 @@ def parseLines[F[_], A](lines: Stream[F, String], parser: Parser[A]): Stream[F, 
 
   lines.pull { h =>
     mkLines(h) flatMap { ls => parser(ls) } flatMap {
-      case Left(errs) => Stream emitAll errs map { Right(_) }
-      case Right(results) => Stream emitAll results map { Left(_) }
+      case Left(errs) =>
+        Pull output (Chunk seq (errs map { Right(_) }))
+
+      case Right(results) =>
+        Pull output (Chunk seq (results map { Left(_) }))
     }
   }
 }
