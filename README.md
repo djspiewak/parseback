@@ -79,10 +79,10 @@ The above is a BNF grammar which matches the string  any number of *balanced* br
 Now, you probably noticed the immediate redundancy across two of the reductions of the `E` non-terminal.  It seems intuitive that we should be able to extract out that redundancy into a separate, shared non-terminal.  Always DRY, right?
 
 ```
-T ::= E ')'
-    | E ']'
+T ::= '(' E
 
-E := '(' T
+E := T ')'
+   | T ']'
    | epsilon
 ```
 
