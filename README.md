@@ -13,6 +13,20 @@
 
 Parseback is a Scala implementation of [parsing with derivatives](http://matt.might.net/papers/might2011derivatives.pdf) (Might, Darais, Spiewak; 2011) taking into account the significant refinements of described by [Adams, Hollenbeck and Might](http://dl.acm.org/citation.cfm?id=2908128).  It is designed to be an idiomatic, convenient and safe parser combinator library for formal general context-free grammars with production-viable performance.
 
+1. [Usage](#usage)
+2. [Motivation](#motivation)
+  a. [Generalized Parsing](#generalized-parsing)
+  b. [Why Parseback?](#why-parseback)
+  c. [Why Not PEG / Packrat / Parser Combinators?](#why-not-peg--packrat--parser-combinators)
+3. [Performance](#performance)
+4. [Example](#example)
+  a. [Direct Grammar](#direct-grammar)
+  b. [Application](#application)
+  c. [Building Trees](#building-trees)
+5. [DSL Reference](#dsl-reference)
+6. [Forks and Releases](#forks-and-releases)
+7. [Contributing and Legal](#contributing-and-legal)
+
 ## Usage
 
 ```sbt
@@ -112,7 +126,7 @@ Fortunately, we don't have to *only* point to practical-monopoly as a reason to 
 
 Ever wanted to pass an arity-3 lambda as a reduction rule for a Scala parser combinator instance of the form `a ~ b ~ c` and get full type inference?  Scala's parser combinators cannot do this.  Parseback can.
 
-### Why not PEG / Packrat / Parser Combinators?
+### Why Not PEG / Packrat / Parser Combinators?
 
 Since the terms are not particularly well known, let's take a second to agree on what "PEG" and "Packrat" are.
 
@@ -142,9 +156,226 @@ Given that Parseback is being implemented on the JVM, I would expect the perform
 
 *Assuming* we can achieve the performance that I believe is a realistic ceiling for this algorithm and API on the JVM, parseback should be pretty dramatically faster than Scala's standard library parser combinators.  I expect that parseback will remain slower than some heavily-optimized and specialized parsing frameworks such as Parboiled, but such frameworks are designed for a very different use-case (i.e. not language construction).  Pre-compiled tools like ANTLR and (especially!) Beaver will remain the gold standard for parser performance on the JVM, but my goal is to bring parseback's runtime performance close *enough* to these tools that it becomes a real, viable alternative, but (obviously) within the form of an embedded DSL with a pleasant API.
 
-## Examples
+## Example
 
-*TODO*
+This section will assume the following imports:
+
+```scala
+import parseback._
+import parseback.compat.cats._
+```
+
+If you're using scalaz, you should replace `cats` with `scalaz`, as well as make other alterations below to the cats-specific types (e.g. replace `Eval` with `Need`).
+
+A time-honored example of parsers is the expression grammar, and who are we to argue with tradition!  The following parser reads and evaluates simple arithmetic expressions over integers:
+
+### Direct Grammar
+
+```scala
+implicit val W = Whitespace("""\s+"""r)
+
+lazy val expr: Parser[Int] = (
+    expr ~ "+" ~ term ^^ { (_, e, _, t) => e + t }
+  | expr ~ "-" ~ term ^^ { (_, e, _, t) => e - t }
+  | term
+)
+
+lazy val term: Parser[Int] = (
+    expr ~ "*" ~ factor ^^ { (_, e, _, f) => e * f }
+  | expr ~ "/" ~ factor ^^ { (_, e, _, f) => e / f }
+  | factor
+)
+
+lazy val factor: Parser[Int] = (
+    "(" ~> expr <~ ")"
+  | "-" ~ expr  ^^ { (_, _, e) => -e }
+  | """\d+""".r ^^ { (_, str) => str.toInt }
+)
+```
+
+The first thing that you should notice is that this looks *very* similar to the [expression grammar example](https://en.wikipedia.org/wiki/Context-free_grammar#Algebraic_expressions) given on Wikipedia.  In fact, the grammar is identical save for three features:
+
+- Negation
+- Integer literals
+- Precedence and associativity
+
+The Wikipedia article on CFGs actually specifically calls out the precedence and associativity question, where as we are presciently side-stepping it for the time being.  As for negation and integers, it just seemed like a more interesting example if I included them.
+
+At any rate, this should give a general feel for how parseback's DSL works that should be familiar to anyone who has used a parser generator tool (such as BISON) in the past.  Values of type `Parser` represent grammar fragments – generally non-terminals – and can be composed either via the `~` operator (sequentially) or via the `|` operator (alternation).  It is idiomatic to vertically align definitions by the `|` operator, so as to mimic the conventional structure of a BNF grammar.  Remember, this is a *declarative* definition of the underlying grammar.
+
+The first bit of weirdness you should notice as a user of Scala is that all of these parsers are declared as `lazy val`.  This is extremely important.  Scalac would not complain if we used `def` here, but the algorithm wouldn't provide the same guarantees.  In fact, if you use `def` instead of `lazy val`, the PWD algorithm becomes exponential instead of cubic!  This is because `def` defeats memoization by creating an infinite lazy tree.  This is different from `lazy val`, which represents the cyclic graph directly.  Packrat parsing frameworks have a similar restriction.
+
+There are a few more symbols to unpack here before we move onto how we actually *use* this tool.  First, the mysterious `^^` operator which apparently takes a lambda as its parameter.  This operator is effectively the `map` operation on `Parser`.  Note that `Parser` does define a `map` which obeys the functor laws and which has a slightly different signature.  Specifically, it does not provide line tracking (a feature we'll cover in a bit).  Symbolic operators, and especially the `^^` operator, have better precedence interactions with the rest of the DSL and are generally quite lightweight, which is why we're using `^^` here instead of an English name in the DSL.
+
+The *meaning* of the `^^` operator is the same as `map` though: take the `Parser` to the left and "unpack" it, applying the given function to its result and return a new `Parser` which will produce the returned value.  In standard parser generator terms, `^^` denotes a semantic action, or "reduction".  The action itself is given by the lambda which is passed to `^^`.  This lambda will take the following parameters:
+
+1. The line(s) which were parsed to produce the results
+2. The first result in a sequential composition
+3. The second result in a sequential composition
+4. *etc…*
+
+Thus, if you apply `^^` to a `Parser` created from a single rule (such as the very last rule in `factor`), its lambda will take *two* parameters: one for the line, and one for the result.  If you apply `^^` to a `Parser` created from the composition of two rules (such as the negation rule in `factor`), it will take *three* parameters: one for the line, and one for each of the results.  If you apply `^^` to a `Parser` created from the composition of three rules (such as any of the actions in `expr` or `term`), it will take *four* parameters: one for the line, and one for each of the results.  In the cases of the `expr` and `term` reductions, as well as the negation rule in `factor`, we don't care about the results from the syntax operators (e.g. `"*"`, `"-"`, and so on), since these are trivial.  What we care about are the results from the `expr`, `term` and `factor` parsers.  These are captured in the relevant function parameters, and then used in the computation.
+
+Sharp-eyed readers will realize that the following grammar production is a bit different than the others: `"(" ~> expr <~ ")"`.  Specifically, this is using the `~>` and `<~` operators.  These operators behave exactly the same as the `~` operator – sequential composition of two parsers – except they only preserve the result in the direction of the "arrow".  Parentheses are a mixfix operator which only matters for grouping purposes and does not affect the result of the expression.  Thus, the results obtained by computing the value of an expression wrapped in parentheses is simply the value of the expression within the parentheses, unmodified.  We could have equivalently written this production in the following way:
+
+```scala
+"(" ~> expr <~ ")"
+// is equivalent to!
+"(" ~ expr ~ ")" ^^ { (_, _, e, _) => e }
+```
+
+Obviously, the former is quite a bit more concise than the latter.  You should decide on a case-by-case basis whether or not it is worth using the `~>` or `<~` operators in your grammars.  For example, you'll notice I didn't use them in the negation operation, despite the fact that the result of the `"-"` parser is meaningless.  Whether or not you use the "arrow" operators rather than plain-old sequential composition (`~`) is up to you, but I will say from experience that *over*-use of these operators can make it very difficult to read a grammar.  Sometimes, the simpler tools are best.
+
+One final note: that mysterious `implicit val W = Whitespace(...)` thing that we put at the very top.  This is clearly not part of the grammar.  What we're actually doing here is configuring the behavior of the scannerless tokenizer within parseback.  Parseback does implement scannerless parsing, as you probably inferred from the "bare" regular expression within the `factor` non-terminal, but doing so requires a bit of configuration in order to avoid assuming things about your language.  Specifically, you must tell parseback exactly what characters count as whitespace and thus can be ignored leading and trailing tokens.  This is important, since some languages have significant whitespace!  By default, parseback will not assume any whitespace semantics at all, and all characters will be parsed.  We override this default by providing an implicit value of type `Whitespace`.  This value must be in scope both at the grammar declaration site *and* at the point where we apply the grammar to an input (see below).
+
+Note that parseback's whitespace handling is currently extremely naive.  The only whitespace regular expressions which will behave appropriately are of the form `.+`, where `.` is "any single character class".  Thus, `\s+` is valid, as is `[ \t]+`, but `//[^\n]*|\s+` is not.  We hope to lift this restriction soon, but it requires some work on the algorithm.
+
+### Application
+
+So how do we apply a parser to a given input stream, now that we've declared the parser?  The first thing we need to do is convert the input stream into a `LineStream`.  `LineStream[F]` is an abstraction inside parseback representing a lazy cons list of lines, where each tail is produced within an effect, `F`.  It is very literally `StreamT[F, Line]`, where `Line` is a `String` with some metadata (notably including line number).  This is a relatively broad abstraction, and allows for basically anything which can be incrementally produced within a monadic effect, including `fs2.Stream` (or to be more precise, `fs2.Pull`), `IO`, `Future`, or in the case of our simple examples, `Eval`.
+
+`LineStream` contains some helpful constructors which can build streams from some common inputs, including a plain-old `String` (which may contain multiple lines).  This is the constructor we're going to use in all of our examples:
+
+```scala
+import cats.Eval
+
+val input: LineStream[Eval] = LineStream[Eval]("1 + 2")
+```
+
+The exact monad doesn't really matter here, so long as it obeys the monad laws.  We're constructing a line stream, `input`, from an already-in-memory value, so there is no need for any sort of complex effect control.  In fact, the constructor `String => LineStream[F]` accepts any `Applicative[F]`, and `cats.Eval` is just a convenient one.  Another convenient applicative might be `scalaz.Need`.
+
+Once we have our `input`, we can apply our parser to it to produce a result:
+
+```scala
+val result: Eval[Either[List[ParseError], List[Int]]] = expr(input)
+```
+
+Note that the `apply` method on `Parser` requires a `Monad[F]`, where the `F` comes from the `LineStream[F]` it was supplied.  Naturally, we have to get the result "out" of the monad in order to see it, which is trivial in the case of `Eval`:
+
+```scala
+result.value      // => Right(List(3))
+```
+
+The results are contained within an `Either`, and then a `List` within that.  The left side of the `Either` is how errors can be represented in the case of invalid input, while the right side is where the parsed values are.  As this is a generalized parser, it is possible (when you have a globally ambiguous grammar) to produce more than one result for a single input.  For example, this might have happened to us if we hadn't factored our grammar to encode precedence.
+
+And there you have it!  We can apply our parser to any input we like.  For example, we can test that precedence is working correctly:
+
+```scala
+expr(LineStream[Eval]("3 + 4 * 5")).value       // => Right(List(23))
+expr(LineStream[Eval]("(3 + 4) * 5")).value     // => Right(List(35))
+```
+
+If we hadn't correctly encoded precedence by factoring the grammar (specifically, by splitting `expr` and `term`), the first line above would have produced `Right(List(23, 35))`, reflecting the fact that *both* interpretations would be permissible.
+
+And just as a sanity check, we can verify that things which shouldn't parse, don't:
+
+```scala
+expr(LineStream[Eval]("3 + *")).value
+```
+
+This will produce the following value (within the `Left(List(`):
+
+```scala
+UnexpectedCharacter(Line("3 + *", 0, 4), Set("""\d+""", "-", "("))
+```
+
+The `Line` here contains line number and column offset information indicating the `*` character, while the `Set` indicates the possible *expected* valid tokens which *could* have appeared at that location.  Thus, even though PWD isn't a predictive parsing algorithm, it is still able to give fairly decent error messages.  Pretty-printed, this error might look like this:
+
+```
+error:1:5: unexpected character, '*', expected one of: \d+, -, (
+  3 + *
+      ^
+```
+
+So long as you can construct a `LineStream[F]` for something, and that `F` has a lawful `Monad`, you can parse it.  For example, here's a simple function that applies a parser to an [fs2](https://github.com/functional-streams-for-scala/fs2) `Stream` of lines:
+
+```scala
+import fs2._
+
+def parseLines[F[_], A](lines: Stream[F, String], parser: Parser[A]): Stream[F, Either[ParseError, A]] = {
+  def mkLines(h: Handle[F, String]): Pull[F, Nothing, LineStream[Pull[F, Nothing, ?]]] =
+    h.await1Option map {
+      case Some((line, h2)) => LineStream.More(Line(line), mkLines(h2))
+      case None => LineStream.Empty()
+    }
+
+  lines.pull { h =>
+    mkLines(h) flatMap { ls => parser(ls) } flatMap {
+      case Left(errs) => Stream emitAll errs map { Right(_) }
+      case Right(results) => Stream emitAll results map { Left(_) }
+    }
+  }
+}
+```
+
+And there you have generalized, incremental parsing on an ephemeral stream, effectively for free.  We're taking advantage of the fact that fs2 allows us to incrementally traverse a `Stream` via `Pull`, which forms a monad in its resource.
+
+### Building Trees
+
+Evaluating expressions in-place is all well and good, but parseback's API is really designed for building ASTs for use in larger systems, such as compilers.  In order to do this, we're going to need some structure:
+
+```scala
+sealed trait Expr {
+  def loc: List[Line]
+}
+
+final case class Mul(loc: List[Line], left: Expr, right: Expr) extends Expr
+final case class Div(loc: List[Line], left: Expr, right: Expr) extends Expr
+final case class Add(loc: List[Line], left: Expr, right: Expr) extends Expr
+final case class Sub(loc: List[Line], left: Expr, right: Expr) extends Expr
+final case class Neg(loc: List[Line], inner: Expr) extends Expr
+final case class Num(loc: List[Line], value: Int) extends Expr
+```
+
+This is a very straightforward AST that includes line information, just as you might expect inside a simple compiler.  We can modify our original grammar to produce this AST, rather than directly evaluating the expressions:
+
+```scala
+implicit val W = Whitespace("""\s+"""r)
+
+lazy val expr: Parser[Expr] = (
+    expr ~ "+" ~ term ^^ { (loc, e, _, t) => Add(loc, e, t) }
+  | expr ~ "-" ~ term ^^ { (loc, e, _, t) => Sub(loc, e, t) }
+  | term
+)
+
+lazy val term: Parser[Expr] = (
+    expr ~ "*" ~ factor ^^ { (loc, e, _, f) => Mul(loc, e, t) }
+  | expr ~ "/" ~ factor ^^ { (loc, e, _, f) => Div(loc, e, t) }
+  | factor
+)
+
+lazy val factor: Parser[Expr] = (
+    "(" ~> expr <~ ")"
+  | "-" ~ expr  ^^ { (loc, _, e) => Neg(loc, e) }
+  | """\d+""".r ^^ { (loc, str) => Num(loc, str.toInt) }
+)
+```
+
+Now if we apply our parser to a sample input, we should receive an expression tree, rather than a value:
+
+```scala
+expr(LineStream[Eval]("2 * -3 + 4")).value
+```
+
+Within the "either of lists", this will produce:
+
+```scala
+Mul(_, Num(_, 2), Add(_, Neg(_, Num(_, 3)), Num(_, 4)))
+```
+
+I've elided the `List[Line]` values, just to make things more clear, but suffice it to say that they are there, and they represent the line(s) on which the given construct may be found.  This information is very commonly baked into an AST at parse time so that it can be used later in compilation or interpretation to produce error messages relevant to the original declaration site in syntax.  Each AST node contains *all* lines which comprise its syntactic elements, not just the first one, so you have maximal flexibility in how you want to represent things.  If all you want is the first line, you're certainly free to call `.head` on the `loc` value inside of the parser reductions (the list of lines is always guaranteed to be non-empty).
+
+## DSL Reference
+
+- `|` – Composition of two parsers by union.  Both parsers must produce the same type
+- `~` – Composition of two parsers by sequence.  Both results are retained in a `Tuple2` (parseback defines infix `~` as an alias for `Tuple2`)
+  + `~>` – Composition of two parsers by sequence, discarding the left result
+  + `<~` – Composition of two parsers by sequence, discarding the right result
+- `^^` – Map the results of a parser by the specified function, which will be passed the lines consumed by the parser to produce its results
+  + `^^^` – Map the results of a parser to a single constant value
+- `"..."` – Construct a parser which consumes exactly the given string, producing that string as a result
+- `"""...""".r` – Construct a parser which consumes any string which matches the given regular expression, producing the matching string as a result.  Regular expressions may not span multiple lines, and beginning-of-line/end-of-line may be matched with the `^`/`$` anchors.
+- `()` – Construct a parser which always succeeds, consuming nothing, producing `()` as a result
 
 ## Forks and Releases
 
