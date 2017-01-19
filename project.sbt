@@ -76,39 +76,38 @@ val bintraySettings = Seq(
 lazy val root = project
   .in(file("."))
   .aggregate(core, render, cats, scalaz72)
-  .settings(coursierSettings: _*)
-  .settings(bintraySettings: _*)
+  .settings(coursierSettings, bintraySettings)
 
 lazy val core = project
   .in(file("core"))
   .settings(
-    name := "parseback-core")
-  .settings(coursierSettings: _*)
-  .settings(bintraySettings: _*)
+    name := "parseback-core",
+    coursierSettings,
+    bintraySettings)
 
 lazy val cats = project
   .in(file("cats"))
   .dependsOn(core)
   .settings(
-    name := "parseback-cats")
-  .settings(coursierSettings: _*)
-  .settings(bintraySettings: _*)
+    name := "parseback-cats",
+    coursierSettings,
+    bintraySettings)
 
 lazy val scalaz72 = project
   .in(file("scalaz72"))
   .dependsOn(core)
   .settings(
-    name := "parseback-scalaz-72")
-  .settings(coursierSettings: _*)
-  .settings(bintraySettings: _*)
+    name := "parseback-scalaz-72",
+    coursierSettings,
+    bintraySettings)
 
 lazy val render = project
   .in(file("render"))
   .dependsOn(cats)
   .settings(
-    name := "parseback-render")
-  .settings(coursierSettings: _*)
-  .settings(bintraySettings: _*)
+    name := "parseback-render",
+    coursierSettings,
+    bintraySettings)
 
 /***********************************************************************\
                       Boilerplate below these lines
