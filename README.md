@@ -60,7 +60,7 @@ If you don't believe that generalized parsing (i.e. a parsing algorithm which ca
 
 ### Generalized Parsing
 
-Context-Free Grammars have several very nice properties as a formalism.  Notably, they:
+Context-Free Grammars, or CFGs, have several very nice properties as a formalism.  Notably, they:
 
 - Are closed under *union*
 - Are closed under *sequence*
@@ -88,7 +88,7 @@ E := '(' E ')'
    | epsilon
 ```
 
-The above is a BNF grammar which matches the string  any number of *balanced* bracket or parentheses operators, with the odd twist that brackets may close parentheses.  For example: `(((((((((((])))])]])))` is a valid string in the language defined by this grammar.
+The above is a BNF (Backus–Naur form) grammar which matches the string  any number of *balanced* bracket or parentheses operators, with the odd twist that brackets may close parentheses.  For example: `(((((((((((])))])]])))` is a valid string in the language defined by this grammar.
 
 Now, you probably noticed the immediate redundancy across two of the reductions of the `E` non-terminal.  It seems intuitive that we should be able to extract out that redundancy into a separate, shared non-terminal.  Always DRY, right?
 
@@ -130,7 +130,7 @@ Ever wanted to pass an arity-3 lambda as a reduction rule for a Scala parser com
 
 Since the terms are not particularly well known, let's take a second to agree on what "PEG" and "Packrat" are.
 
-Parsing Expression Grammars, or PEG, is a declarative format, analogous to BNF, which defines a grammar-like construct that will be accepted by a recursive-descent style parsing algorithm with infinite backtracking.  It consists of two primary composition operators: sequence, and *ordered choice*.  It does not contain a union operation, though ordered choice is somewhat reminiscent of union and may be used to encode similar grammatical semantics.
+Parsing Expression Grammars, or PEGs, is a declarative format, analogous to BNF, which defines a grammar-like construct that will be accepted by a recursive-descent style parsing algorithm with infinite backtracking.  It consists of two primary composition operators: sequence, and *ordered choice*.  It does not contain a union operation, though ordered choice is somewhat reminiscent of union and may be used to encode similar grammatical semantics.
 
 PEGs as a construction and as a parsing algorithm have gained considerable traction over the last decade, due in part to the subjectively intuitive properties of the ordered choice operation for disambiguation (it "tries" the first branch first), and also because of the ease with which the underlying algorithm may be implemented.  The parsing algorithm itself is exponential in the worst case (a recursively ambiguous grammar applied to input which it will *reject*), but is generally polynomial (with a moderately high exponent) on most inputs.  It does not admit left-recursive grammars, and "ambiguous" grammars will produce only a single result (due to the ordered choice).
 
@@ -138,7 +138,7 @@ Packrat parsing improves on PEG parsing through memoization, using a set of tech
 
 Parser combinators are familiar to anyone doing functional programming, and they literally implement PEG parsing.  The progression of parser combinator frameworks has more or less mirrored and borrowed-from the progression of PEG parsers, and most widely-used practical parser combinator frameworks are now implemented using some variant of Packrat parsing.  This includes Scala's standard library parser combinators.
 
-Anyway, if these tools are so popular, why not use them?  My answer is simply that PEG parsing, as a fundamental tool, is broken.  Ordered choice seems very intuitive and pleasing when you first use it, but it becomes progressively harder and harder to encode expected semantics into a grammar.  A very common example of this is encoding *equal* precedence for the `+` and `-` binary operators in an expression grammar.  PEG parsing has no really good way of doing this.  And as your grammar gets more complicated and your disambiguation semantics become progressively more situational, you end up contorting your PEG expressions quite considerably just to get the ordering you need.  Your PEG "grammar" starts acting a lot more like an imperative program with slightly odd syntax, rather than a truly declarative abstraction.
+So, if these tools are so popular, why not use them?  My answer is simply that PEG parsing, as a fundamental tool, is broken.  Ordered choice seems very intuitive and pleasing when you first use it, but it becomes progressively harder and harder to encode expected semantics into a grammar.  A very common example of this is encoding *equal* precedence for the `+` and `-` binary operators in an expression grammar.  PEG parsing has no really good way of doing this.  And as your grammar gets more complicated and your disambiguation semantics become progressively more situational, you end up contorting your PEG expressions quite considerably just to get the ordering you need.  Your PEG "grammar" starts acting a lot more like an imperative program with slightly odd syntax, rather than a truly declarative abstraction.
 
 One of parseback's fundamental guiding principles is that everything about parser construction should be declarative.  The grammar should specify the language precisely, and without imperative flow.  Disambiguation rules and negation classes should be similarly declarative, and uncluttered from the formal semantics of the CFG itself as they are, in fact, a function of tree construction.  Semantic actions (reductions) should be pure functions without a need for separate state tracking.  All of these things have been found to be enormously valuable properties in practice (based on experience with tools like SGLR and gll-combinators).  Parseback's goal is to bring these properties to Scala together with high performance and a clean, idiomatic API.
 
@@ -203,9 +203,9 @@ The Wikipedia article on CFGs actually specifically calls out the precedence and
 
 At any rate, this should give a general feel for how parseback's DSL works that should be familiar to anyone who has used a parser generator tool (such as BISON) in the past.  Values of type `Parser` represent grammar fragments – generally non-terminals – and can be composed either via the `~` operator (sequentially) or via the `|` operator (alternation).  It is idiomatic to vertically align definitions by the `|` operator, so as to mimic the conventional structure of a BNF grammar.  Remember, this is a *declarative* definition of the underlying grammar.
 
-The first bit of weirdness you should notice as a user of Scala is that all of these parsers are declared as `lazy val`.  This is extremely important.  Scalac would not complain if we used `def` here, but the algorithm wouldn't provide the same guarantees.  In fact, if you use `def` instead of `lazy val`, the PWD algorithm becomes exponential instead of cubic!  This is because `def` defeats memoization by creating an infinite lazy tree.  This is different from `lazy val`, which represents the cyclic graph directly.  Packrat parsing frameworks have a similar restriction.
+The first bit of weirdness you should notice as a user of Scala is that all of these parsers are declared as `lazy val`.  This is extremely important.  The Scala compiler would not complain if we used `def` here, but the algorithm wouldn't provide the same guarantees.  In fact, if you use `def` instead of `lazy val`, the PWD algorithm becomes exponential instead of cubic!  This is because `def` defeats memoization by creating an infinite lazy tree.  This is different from `lazy val`, which represents the cyclic graph directly.  Packrat parsing frameworks have a similar restriction.
 
-There are a few more symbols to unpack here before we move onto how we actually *use* this tool.  First, the mysterious `^^` operator which apparently takes a lambda as its parameter.  This operator is effectively the `map` operation on `Parser`.  Note that `Parser` does define a `map` which obeys the functor laws and which has a slightly different signature.  Specifically, it does not provide line tracking (a feature we'll cover in a bit).  Symbolic operators, and especially the `^^` operator, have better precedence interactions with the rest of the DSL and are generally quite lightweight, which is why we're using `^^` here instead of an English name in the DSL.
+There are a few more symbols to unpack here before we move on to how we actually *use* this tool.  First, the mysterious `^^` operator which apparently takes a lambda as its parameter.  This operator is effectively the `map` operation on `Parser`.  Note that `Parser` does define a `map` which obeys the functor laws and which has a slightly different signature.  Specifically, it does not provide line tracking (a feature we'll cover in a bit).  Symbolic operators, and especially the `^^` operator, have better precedence interactions with the rest of the DSL and are generally quite lightweight, which is why we're using `^^` here instead of an English name in the DSL.
 
 The *meaning* of the `^^` operator is the same as `map` though: take the `Parser` to the left and "unpack" it, applying the given function to its result and return a new `Parser` which will produce the returned value.  In standard parser generator terms, `^^` denotes a semantic action, or "reduction".  The action itself is given by the lambda which is passed to `^^`.  This lambda will take the following parameters:
 
@@ -296,16 +296,13 @@ def parseLines[F[_], A](lines: Stream[F, String], parser: Parser[A]): Stream[F, 
   def mkLines(h: Handle[F, String]): Pull[F, Nothing, LineStream[Pull[F, Nothing, ?]]] =
     h.await1Option map {
       case Some((line, h2)) => LineStream.More(Line(line), mkLines(h2))
-      case None => LineStream.Empty()
+      case None             => LineStream.Empty()
     }
 
   lines.pull { h =>
     mkLines(h) flatMap { ls => parser(ls) } flatMap {
-      case Left(errs) =>
-        Pull output (Chunk seq (errs map { Right(_) }))
-
-      case Right(results) =>
-        Pull output (Chunk seq (results map { Left(_) }))
+      case Left(errs)     => Pull output (Chunk seq (errs map { Right(_) }))
+      case Right(results) => Pull output (Chunk seq (results map { Left(_) }))
     }
   }
 }
