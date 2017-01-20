@@ -28,8 +28,12 @@ package object parseback {
   type ~[+A, +B] = (A, B)
   val ~ = Tuple2
 
-  implicit def literal(str: String)(implicit W: Whitespace): Parser[String] =
-    Parser.Literal(str, 0)
+  implicit def literal(str: String)(implicit W: Whitespace): Parser[String] = {
+    if (str.isEmpty)
+      unit(()) map { _ => str }
+    else
+      Parser.Literal(str, 0)
+  }
 
   implicit def literalLazy(str: String)(implicit W: Whitespace): LazyParserSyntax[String] =
     LazyParserSyntax(literal(str))
