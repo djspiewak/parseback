@@ -104,7 +104,7 @@ Unfortunately, this is no longer valid according to some parsing algorithms!  We
 
 This is not an issue for generalized parsers such as parseback.
 
-So generalized CFGs, as opposed to the limited variants supported by most parsing algorithms, give us a parsing analogue of referential transparency, and they give us closure under composition.  Again, closure under composition means that we can *always* compose to grammars, either via union or sequence, and the result is a grammar.  Put another way: with a generalized parsing algorithm, all combinators are *total*; with a non-generalized parsing algorithm, composition is *partial* and may fail on certain values.
+So generalized CFGs, as opposed to the limited variants supported by most parsing algorithms, give us a parsing analogue of referential transparency, and they give us closure under composition.  Again, closure under composition means that we can *always* compose two grammars, either via union or sequence, and the result is a grammar.  Put another way: with a generalized parsing algorithm, all combinators are *total*; with a non-generalized parsing algorithm, composition is *partial* and may fail on certain values.
 
 ### Why Parseback?
 
