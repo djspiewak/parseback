@@ -24,10 +24,6 @@ import util.EitherSyntax._
 
 sealed trait Parser[+A] {
 
-  // non-volatile on purpose!  parsers are not expected to cross thread boundaries during a single step
-  private[this] var lastDerivation: (Line, Parser[A]) = _
-  private[this] var finishMemo: List[A] = _     // cannot memoize failure
-
   protected var nullableMemo: Nullable = Nullable.Maybe
 
   def map[B](f: A => B): Parser[B] = Parser.Apply(this, { (_, a: A) => f(a) :: Nil })
@@ -77,7 +73,7 @@ sealed trait Parser[+A] {
     def inner(self: Parser[A])(ls: LineStream[F]): F[List[ParseError] \/ List[A]] = ls match {
       case More(line, tail) =>
         trace(s"current line = ${line.project}")
-        val derivation = self derive line
+        val derivation = self.derive(line, new MemoTable)   // create a new memo table with each new character
 
         val ls2: F[LineStream[F]] = line.next map { l =>
           Monad[F] point More(l, tail)
@@ -86,7 +82,7 @@ sealed trait Parser[+A] {
         Monad[F].flatMap(ls2)(inner(derivation))
 
       case Empty() =>
-        Monad[F] point (self finish Set())
+        Monad[F] point self.finish(Set(), new MemoTable)
     }
 
     val recompiled =
@@ -153,45 +149,35 @@ sealed trait Parser[+A] {
   }
 
   // memoized version of derive
-  protected final def derive(line: Line): Parser[A] = {
+  protected final def derive(line: Line, table: MemoTable): Parser[A] = {
     assert(!line.isEmpty)
 
-    val snapshot = lastDerivation
-
-    if (snapshot != null && snapshot._1 == line) {
-      snapshot._2
-    } else {
-      val back = _derive(line)
-      lastDerivation = line -> back
-
+    table.derive(this, line.head) getOrElse {
+      val back = _derive(line, table)
+      table.derived(this, line.head, back)
       back
     }
   }
 
   // TODO generalize to deriving in bulk, rather than by character
-  protected def _derive(line: Line): Parser[A]
+  protected def _derive(line: Line, table: MemoTable): Parser[A]
 
-  protected final def finish(seen: Set[Parser[_]]): List[ParseError] \/ List[A] = {
+  protected final def finish(seen: Set[Parser[_]], table: MemoTable): List[ParseError] \/ List[A] = {
     if (seen contains this) {
       -\/(ParseError.UnboundedRecursion(this) :: Nil)
-    } else if (finishMemo == null) {
-      val back = _finish(seen + this)
-
-      // map = foreach (apparently)
-      back map { results =>
-        finishMemo = results
-      }
-
-      back
     } else {
-      \/-(finishMemo)
+      table.finish(this) getOrElse {
+        val back = _finish(seen + this, table)
+        table.finished(this, back)
+        back
+      }
     }
   }
 
   /**
    * If isNullable == false, then finish == None.
    */
-  protected def _finish(seen: Set[Parser[_]]): List[ParseError] \/ List[A]
+  protected def _finish(seen: Set[Parser[_]], table: MemoTable): List[ParseError] \/ List[A]
 }
 
 object Parser {
@@ -204,24 +190,24 @@ object Parser {
 
   final case class Sequence[+A, +B](left: Parser[A], right: Parser[B]) extends Parser[A ~ B] {
 
-    protected def _derive(line: Line): Parser[A ~ B] = {
+    protected def _derive(line: Line, table: MemoTable): Parser[A ~ B] = {
       if (left.isNullable) {
-        lazy val nonNulled = left.derive(line) ~ right
+        lazy val nonNulled = left.derive(line, table) ~ right
 
-        left.finish(Set()) match {
+        left.finish(Set(), table) match {
           case -\/(_) => nonNulled
           case \/-(results) =>
-            nonNulled | Apply(right.derive(line), { (_, b: B) => results map { (_, b) } })
+            nonNulled | Apply(right.derive(line, table), { (_, b: B) => results map { (_, b) } })
         }
       } else {
-        left.derive(line) ~ right
+        left.derive(line, table) ~ right
       }
     }
 
-    protected def _finish(seen: Set[Parser[_]]) =
+    protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
       for {
-        lf <- left finish seen
-        rf <- right finish seen
+        lf <- left.finish(seen, table)
+        rf <- right.finish(seen, table)
       } yield lf flatMap { l => rf map { r => (l, r) } }
   }
 
@@ -229,12 +215,12 @@ object Parser {
     lazy val left = _left()
     lazy val right = _right()
 
-    protected def _derive(line: Line): Parser[A] =
-      left.derive(line) | right.derive(line)
+    protected def _derive(line: Line, table: MemoTable): Parser[A] =
+      left.derive(line, table) | right.derive(line, table)
 
-    protected def _finish(seen: Set[Parser[_]]) = {
-      val lf = left finish seen
-      val rf = right finish seen
+    protected def _finish(seen: Set[Parser[_]], table: MemoTable) = {
+      val lf = left.finish(seen, table)
+      val rf = right.finish(seen, table)
 
       (lf, rf) match {
         case (-\/(lErr), -\/(rErr)) =>
@@ -257,11 +243,11 @@ object Parser {
     override def mapWithLines[C](f2: (List[Line], B) => C): Parser[C] =
       Apply(target, { (lines, a: A) => f(lines, a) map { f2(lines, _) } }, lines)
 
-    protected def _derive(line: Line): Parser[B] =
-      Apply(target derive line, f, lines :+ line)
+    protected def _derive(line: Line, table: MemoTable): Parser[B] =
+      Apply(target.derive(line, table), f, lines :+ line)
 
-    protected def _finish(seen: Set[Parser[_]]) =
-      target finish seen map { rs => rs flatMap { f(lines.toList, _) } }
+    protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
+      target.finish(seen, table) map { rs => rs flatMap { f(lines.toList, _) } }
   }
 
   final case class Literal(literal: String, offset: Int = 0)(implicit W: Whitespace) extends Parser[String] {
@@ -270,7 +256,7 @@ object Parser {
 
     nullableMemo = Nullable.False
 
-    protected def _derive(line: Line): Parser[String] = {
+    protected def _derive(line: Line, table: MemoTable): Parser[String] = {
       W stripLeading line match {
         case Some(_) =>
           this
@@ -287,7 +273,7 @@ object Parser {
       }
     }
 
-    protected def _finish(seen: Set[Parser[_]]) =
+    protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
       -\/(ParseError.UnexpectedEOF(Set(literal substring offset)) :: Nil)
   }
 
@@ -297,7 +283,7 @@ object Parser {
 
     nullableMemo = Nullable.False
 
-    protected def _derive(line: Line): Parser[String] = {
+    protected def _derive(line: Line, table: MemoTable): Parser[String] = {
       W stripLeading line match {
         case Some(line2) =>
           val m = r findPrefixOf line2.project
@@ -320,7 +306,7 @@ object Parser {
       }
     }
 
-    protected def _finish(seen: Set[Parser[_]]) =
+    protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
       -\/(ParseError.UnexpectedEOF(Set(r.toString)) :: Nil)
   }
 
@@ -329,17 +315,17 @@ object Parser {
 
     override def ^^^[B](b: B): Parser[B] = Epsilon(b)
 
-    protected def _derive(line: Line): Parser[A] =
+    protected def _derive(line: Line, table: MemoTable): Parser[A] =
       Failure(ParseError.UnexpectedTrailingCharacters(line) :: Nil)
 
-    protected def _finish(seen: Set[Parser[_]]) = \/-(value :: Nil)
+    protected def _finish(seen: Set[Parser[_]], table: MemoTable) = \/-(value :: Nil)
   }
 
   final case class Failure(errors: List[ParseError]) extends Parser[Nothing] {
     nullableMemo = Nullable.True
 
-    protected def _derive(line: Line): Parser[Nothing] = this
+    protected def _derive(line: Line, table: MemoTable): Parser[Nothing] = this
 
-    protected def _finish(seen: Set[Parser[_]]) = -\/(errors)
+    protected def _finish(seen: Set[Parser[_]], table: MemoTable) = -\/(errors)
   }
 }

@@ -19,8 +19,6 @@ package parseback
 object ArithmeticSpec extends ParsebackSpec {
   import ParseError._
 
-  sequential    // TODO !!!
-
   "expression evaluator" should {
     implicit val W = Whitespace("""\s+"""r)
 
