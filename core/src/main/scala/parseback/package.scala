@@ -56,7 +56,7 @@ package object parseback {
     EagerParser1Syntax(unit(u))
 
   final implicit class LazyParserSyntax[A](self: => Parser[A]) {
-    def |(that: => Parser[A]): Parser[A] = Parser.Union(() => self, () => that)
+    def |[B >: A](that: => Parser[B]): Parser[B] = Parser.Union(() => self, () => that)
   }
 
   // ^^ syntax
