@@ -31,8 +31,8 @@ object ArithmeticSpec extends ParsebackSpec {
     )
 
     lazy val term: Parser[Int] = (
-        expr ~ "*" ~ factor ^^ { (_, e, _, f) => e * f }
-      | expr ~ "/" ~ factor ^^ { (_, e, _, f) => e / f }
+        term ~ "*" ~ factor ^^ { (_, e, _, f) => e * f }
+      | term ~ "/" ~ factor ^^ { (_, e, _, f) => e / f }
       | factor
     )
 
@@ -49,7 +49,7 @@ object ArithmeticSpec extends ParsebackSpec {
     "correctly handle precedence" in {
       expr must parseOk("3 + 4 * 5")(23)
       expr must parseOk("(3 + 4) * 5")(35)
-    }.pendingUntilFixed
+    }
 
     "reject partial expressions" in {
       expr must failToParse("3 + *")(UnexpectedCharacter(Line("3 + *", 0, 4), Set("""\d+""", "-", "(")))

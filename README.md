@@ -181,8 +181,8 @@ lazy val expr: Parser[Int] = (
 )
 
 lazy val term: Parser[Int] = (
-    expr ~ "*" ~ factor ^^ { (_, e, _, f) => e * f }
-  | expr ~ "/" ~ factor ^^ { (_, e, _, f) => e / f }
+    term ~ "*" ~ factor ^^ { (_, e, _, f) => e * f }
+  | term ~ "/" ~ factor ^^ { (_, e, _, f) => e / f }
   | factor
 )
 
