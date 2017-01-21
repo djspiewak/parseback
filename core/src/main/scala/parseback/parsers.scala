@@ -35,6 +35,8 @@ sealed trait Parser[+A] {
 
   final def ~[B](that: Parser[B]): Parser[A ~ B] = Parser.Sequence(this, that)
 
+  final def ~(): Parser[A ~ Unit] = Parser.Sequence(this, unit(()))
+
   final def ~>[B](that: Parser[B]): Parser[B] =
     (this ~ that) map { case _ ~ b => b }
 
@@ -96,56 +98,155 @@ sealed trait Parser[+A] {
     Monad[F].flatMap(prepped)(inner(this))
   }
 
-  protected final def isNullable: Boolean = {
+  protected[parseback] final def isNullable: Boolean = {
     import Nullable._
+    import MemoTable.ParserId
     import Parser._
 
-    def inner(p: Parser[_], tracked: Set[Parser[_]] = Set()): Nullable = {
-      if ((tracked contains p) || p.nullableMemo != Maybe) {
-        p.nullableMemo
-      } else {
-        p match {
-          case p @ Sequence(left, right) =>
-            val tracked2 = tracked + p
+    sealed trait Constraint extends Product with Serializable
 
-            p.nullableMemo = inner(left, tracked2) && inner(right, tracked2)
-            p.nullableMemo
+    final case class And(left: ParserId[_], right: ParserId[_]) extends Constraint
+    final case class Or(left: ParserId[_], right: ParserId[_]) extends Constraint
+    final case class Delegate(delegate: ParserId[_]) extends Constraint
+    final case class Solved(b: Boolean) extends Constraint
+
+    type ConstSet = Map[ParserId[_], Constraint]
+
+    def constraints(p: Parser[_], seen: Set[ParserId[_]]): ConstSet = {
+      if (p.nullableMemo != Maybe) {
+        Map(new ParserId(p) -> Solved(p.nullableMemo.toBoolean))
+      } else if (seen contains (new ParserId(p))) {
+        Map()
+      } else {
+        val self = new ParserId(p)
+
+        p match {
+          case Sequence(left, right) =>
+            val here = Map(
+              self -> And(new ParserId(left), new ParserId(right)))
+
+            val rec = seen + self
+            here ++ constraints(left, rec) ++ constraints(right, rec)
 
           case p @ Union(_, _) =>
-            val tracked2 = tracked + p
+            val here = Map(
+              self -> Or(new ParserId(p.left), new ParserId(p.right)))
 
-            p.nullableMemo = inner(p.left, tracked2) || inner(p.right, tracked2)
-            p.nullableMemo
+            val rec = seen + self
+            here ++ constraints(p.left, rec) ++ constraints(p.right, rec)
 
-          case p @ Apply(target, _, _) =>
-            p.nullableMemo = inner(target, tracked + p)
-            p.nullableMemo
+          case Apply(target, _, _) =>
+            val here = Map(self -> Delegate(new ParserId(target)))
 
-          // the following two cases should never be hit, but they
-          // are correctly defined here for documentation purposes
-          case p @ Literal(_, _) =>
-            p.nullableMemo = False
-            False
+            here ++ constraints(target, seen + self)
 
-          case p @ Regex(_) =>
-            p.nullableMemo = False
-            False
-
-          case p @ Epsilon(_) =>
-            p.nullableMemo = True
-            True
-
-          case p @ Failure(_) =>
-            p.nullableMemo = True
-            True
+          case _ => throw new AssertionError("impossible due to nullableMemo init")
         }
       }
     }
 
-    if (nullableMemo == Maybe)
-      inner(this).toBoolean
-    else
-      nullableMemo.toBoolean
+    def undelegate(cs: ConstSet)(target: ParserId[_]): ParserId[_] = {
+      val received = cs get target
+
+      val result = received collect {
+        case Delegate(target2) => target2
+      } map undelegate(cs)
+
+      result getOrElse target
+    }
+
+    def substitute(cs: ConstSet): ConstSet = cs map {
+      case (id, And(left, right)) =>
+        val left2 = undelegate(cs)(left)
+        val right2 = undelegate(cs)(right)
+
+        val leftSolve = cs get left2 collect { case Solved(b) => b }
+        val rightSolve = cs get right2 collect { case Solved(b) => b }
+
+        val joined = for {
+          ls <- leftSolve
+          rs <- rightSolve
+        } yield ls && rs
+
+        val shorted =
+          (leftSolve filter { _ == false }) orElse
+            (rightSolve filter { _ == false })
+
+        val solved = joined orElse shorted
+
+        solved foreach { b =>
+          id.self.nullableMemo = if (b) True else False
+        }
+
+        id -> (solved map Solved getOrElse And(left2, right2))
+
+      case (id, Or(left, right)) =>
+        val left2 = undelegate(cs)(left)
+        val right2 = undelegate(cs)(right)
+
+        val leftSolve = cs get left2 collect { case Solved(b) => b }
+        val rightSolve = cs get right2 collect { case Solved(b) => b }
+
+        val joined = for {
+          ls <- leftSolve
+          rs <- rightSolve
+        } yield ls || rs
+
+        val shorted =
+          (leftSolve filter { _ == true }) orElse
+            (rightSolve filter { _ == true })
+
+        val solved = joined orElse shorted
+
+        solved foreach { b =>
+          id.self.nullableMemo = if (b) True else False
+        }
+
+        id -> (solved map Solved getOrElse And(left2, right2))
+
+      case pair => pair
+    }
+
+    def simplify(cs: ConstSet): ConstSet = cs map {
+      case (id, c @ And(left, right)) =>
+        val c2 = if (left == id)
+          Delegate(right)
+        else if (right == id)
+          Delegate(left)
+        else
+          c
+
+        id -> c2
+
+      case (id, c @ Or(left, right)) =>
+        val c2 = if (left == id)
+          Delegate(right)
+        else if (right == id)
+          Delegate(left)
+        else
+          c
+
+        id -> c2
+
+      case pair @ (id, Delegate(target)) =>
+        if (id == target)
+          throw new IllegalStateException(s"parser ${id.self} is infinitely recursive")
+        else
+          (id, cs(target))
+
+      case pair => pair
+    }
+
+    val self = new ParserId(this)
+
+    def solveAll(cs: ConstSet): Boolean = {
+      cs(self) match {
+        case Solved(b) => b
+        case _ => solveAll(simplify(substitute(cs)))
+      }
+    }
+
+    solveAll(constraints(this, Set()))
   }
 
   // memoized version of derive
@@ -175,7 +276,7 @@ sealed trait Parser[+A] {
   }
 
   /**
-   * If isNullable == false, then finish == None.
+   * If isNullable == false, then finish ~= -\/(_)
    */
   protected def _finish(seen: Set[Parser[_]], table: MemoTable): List[ParseError] \/ List[A]
 }

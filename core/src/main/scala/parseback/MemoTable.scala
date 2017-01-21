@@ -56,7 +56,7 @@ private[parseback] final class MemoTable {
 
 private[parseback] object MemoTable {
 
-  private[MemoTable] final class ParserId[A](private val self: Parser[A]) {
+  final class ParserId[A](val self: Parser[A]) {
 
     override def equals(that: Any) = that match {
       case that: ParserId[_] => this.self eq that.self
