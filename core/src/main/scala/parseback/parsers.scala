@@ -202,7 +202,7 @@ sealed trait Parser[+A] {
           id.self.nullableMemo = if (b) True else False
         }
 
-        id -> (solved map Solved getOrElse And(left2, right2))
+        id -> (solved map Solved getOrElse Or(left2, right2))
 
       case pair => pair
     }
@@ -253,6 +253,8 @@ sealed trait Parser[+A] {
   protected final def derive(line: Line, table: MemoTable): Parser[A] = {
     assert(!line.isEmpty)
 
+    trace(s"deriving $this by '${line.head}'")
+
     table.derive(this, line.head) getOrElse {
       val back = _derive(line, table)
       table.derived(this, line.head, back)
@@ -267,11 +269,15 @@ sealed trait Parser[+A] {
     if (seen contains this) {
       -\/(ParseError.UnboundedRecursion(this) :: Nil)
     } else {
-      table.finish(this) getOrElse {
+      val back = table.finish(this) getOrElse {
         val back = _finish(seen + this, table)
         table.finished(this, back)
         back
       }
+
+      trace(s"finished $this => $back")
+
+      back
     }
   }
 
@@ -292,7 +298,11 @@ object Parser {
   final case class Sequence[+A, +B](left: Parser[A], right: Parser[B]) extends Parser[A ~ B] {
 
     protected def _derive(line: Line, table: MemoTable): Parser[A ~ B] = {
+      trace(s">> deriving $this")
+
       if (left.isNullable) {
+        trace(s"  >> left is nullable")
+
         lazy val nonNulled = left.derive(line, table) ~ right
 
         left.finish(Set(), table) match {
@@ -301,6 +311,7 @@ object Parser {
             nonNulled | Apply(right.derive(line, table), { (_, b: B) => results map { (_, b) } })
         }
       } else {
+        trace(s"  >> left is not nullable")
         left.derive(line, table) ~ right
       }
     }

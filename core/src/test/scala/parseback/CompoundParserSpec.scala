@@ -369,6 +369,20 @@ object CompoundParserSpec extends ParsebackSpec {
 
       expr must recognize("a,,b+")
     }
+
+    "parse a reduced expression form without missing the primary terms" in {
+      lazy val expr: Parser[Int] = (
+          expr <~ "+" ^^ { (_, e) => e + 1 }
+        | term
+      )
+
+      lazy val term: Parser[Int] = (
+          term <~ "*" ^^ { (_, e) => e * 3 }
+        | "1" ^^^ 1
+      )
+
+      expr must parseOk("1+")(2)
+    }
   }
 
   // commented out until we implement EBNF operators

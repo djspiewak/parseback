@@ -89,5 +89,19 @@ object NullabilitySpec extends ParsebackSpec {
 
       p.isNullable must throwAn[Exception]
     }
+
+    "detect a nullable RHS past nested recursion" in {
+      lazy val left: Parser[Any] = (
+          left <~ "+"
+        | right
+      )
+
+      lazy val right: Parser[Any] = (
+          right <~ "*"
+        | () ^^^ 1
+      )
+
+      left.isNullable must beTrue
+    }
   }
 }
