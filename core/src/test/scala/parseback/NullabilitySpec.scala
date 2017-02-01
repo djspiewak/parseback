@@ -84,10 +84,10 @@ object NullabilitySpec extends ParsebackSpec {
       p.isNullable must beFalse
     }
 
-    "produce error with trivially vacuous union" in {
+    "solve for false with trivially vacuous union" in {
       lazy val p: Parser[Any] = p | p
 
-      p.isNullable must throwAn[Exception]
+      p.isNullable must beFalse
     }
 
     "detect a nullable RHS past nested recursion" in {
