@@ -246,6 +246,7 @@ object Parser {
   }
 
   final case class Sequence[+A, +B](left: Parser[A], right: Parser[B]) extends Parser[A ~ B] {
+    nullableMemo = left.nullableMemo && right.nullableMemo
 
     protected def _derive(line: Line, table: MemoTable): Parser[A ~ B] = {
       trace(s">> deriving $this")
@@ -298,6 +299,7 @@ object Parser {
   }
 
   final case class Apply[A, +B](target: Parser[A], f: (List[Line], A) => List[B], lines: Vector[Line] = Vector.empty) extends Parser[B] {
+    nullableMemo = target.nullableMemo
 
     override def map[C](f2: B => C): Parser[C] =
       Apply(target, { (lines, a: A) => f(lines, a) map f2 }, lines)
