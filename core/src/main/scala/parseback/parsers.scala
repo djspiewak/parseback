@@ -18,7 +18,6 @@ package parseback
 
 import shims.{Applicative, Monad}
 
-import scala.annotation.tailrec
 import scala.util.matching.{Regex => SRegex}
 
 import util.EitherSyntax._
@@ -101,185 +100,103 @@ sealed trait Parser[+A] {
 
   protected[parseback] final def isNullable: Boolean = {
     import Nullable._
-    import MemoTable.ParserId
     import Parser._
 
-    sealed trait Constraint extends Product with Serializable
-
-    final case class And(left: ParserId[_], right: ParserId[_]) extends Constraint
-    final case class Or(left: ParserId[_], right: ParserId[_]) extends Constraint
-    final case class Delegate(delegate: ParserId[_]) extends Constraint
-    final case class Solved(b: Boolean) extends Constraint
-
-    type ConstSet = Map[ParserId[_], Constraint]
-
-    def constraints(p: Parser[_], seen: Set[ParserId[_]]): ConstSet = {
-      if (p.nullableMemo != Maybe) {
-        Map(new ParserId(p) -> Solved(p.nullableMemo.toBoolean))
-      } else if (seen contains (new ParserId(p))) {
-        Map()
+    def inner(p: Parser[_], tracked: Set[Parser[_]] = Set()): Nullable = {
+      if ((tracked contains p) || p.nullableMemo != Maybe) {
+        p.nullableMemo
       } else {
-        val self = new ParserId(p)
-
         p match {
-          case Sequence(left, right) =>
-            val here = Map(
-              self -> And(new ParserId(left), new ParserId(right)))
+          case p @ Sequence(left, right) =>
+            val tracked2 = tracked + p
 
-            val rec = seen + self
-            here ++ constraints(left, rec) ++ constraints(right, rec)
+            p.nullableMemo = inner(left, tracked2) && inner(right, tracked2)
+            p.nullableMemo
 
           case p @ Union(_, _) =>
-            val here = Map(
-              self -> Or(new ParserId(p.left), new ParserId(p.right)))
+            val tracked2 = tracked + p
 
-            val rec = seen + self
-            here ++ constraints(p.left, rec) ++ constraints(p.right, rec)
+            p.nullableMemo = inner(p.left, tracked2) || inner(p.right, tracked2)
+            p.nullableMemo
 
-          case Apply(target, _, _) =>
-            val here = Map(self -> Delegate(new ParserId(target)))
+          case p @ Apply(target, _, _) =>
+            p.nullableMemo = inner(target, tracked + p)
+            p.nullableMemo
 
-            here ++ constraints(target, seen + self)
+          // the following two cases should never be hit, but they
+          // are correctly defined here for documentation purposes
+          case p @ Literal(_, _) =>
+            p.nullableMemo = False
+            False
 
-          case _ => throw new AssertionError("impossible due to nullableMemo init")
+          case p @ Regex(_) =>
+            p.nullableMemo = False
+            False
+
+          case p @ Epsilon(_) =>
+            p.nullableMemo = True
+            True
+
+          case p @ Failure(_) =>
+            p.nullableMemo = True
+            True
         }
       }
     }
 
-    def through(id: ParserId[_], cs: ConstSet, seen: Set[ParserId[_]]): ParserId[_] = {
-      Some(id) filterNot seen flatMap (cs get) collect {
-        case Delegate(id) => through(id, cs, seen + id)
-      } getOrElse id
-    }
+    if (nullableMemo == Maybe) {
+      inner(this) match {
+        case True => true
+        case False => false
 
-    def substitute(cs: ConstSet): ConstSet = cs map {
-      case (id, And(left0, right0)) =>
-        val left = through(left0, cs, Set())
-        val right = through(right0, cs, Set())
-
-        val leftSolve = cs get left collect { case Solved(b) => b }
-        val rightSolve = cs get right collect { case Solved(b) => b }
-
-        val leftShort = leftSolve map {
-          case true => Delegate(right)
-          case false => Solved(false)
-        }
-
-        val rightShort = rightSolve map {
-          case true => Delegate(left)
-          case false => Solved(false)
-        }
-
-        val subbed = leftShort orElse rightShort getOrElse And(left, right)
-
-        subbed match {
-          case Solved(b) => id.self.nullableMemo = if (b) True else False
-          case _ => ()
-        }
-
-        id -> subbed
-
-      case (id, Or(left0, right0)) =>
-        val left = through(left0, cs, Set())
-        val right = through(right0, cs, Set())
-
-        val leftSolve = cs get left collect { case Solved(b) => b }
-        val rightSolve = cs get right collect { case Solved(b) => b }
-
-        val leftShort = leftSolve map {
-          case true => Solved(true)
-          case false => Delegate(right)
-        }
-
-        val rightShort = rightSolve map {
-          case true => Solved(true)
-          case false => Delegate(left)
-        }
-
-        val subbed = leftShort orElse rightShort getOrElse Or(left, right)
-
-        subbed match {
-          case Solved(b) => id.self.nullableMemo = if (b) True else False
-          case _ => ()
-        }
-
-        id -> subbed
-
-      case pair => pair
-    }
-
-    def undelegate(cs: ConstSet): ConstSet = cs map {
-      case pair @ (id, Delegate(target)) =>
-        if (id == target)
-          pair
-        else
-          (id, cs(target))
-
-      case pair => pair
-    }
-
-    val self = new ParserId(this)
-
-    @tailrec
-    def solveAll(cs: ConstSet): Boolean = {
-      cs(self) match {
-        case Solved(b) => b
-
-        case _ =>
-          val cs2 = undelegate(substitute(cs))
-
-          /*
-           * Ok, this gets a little complicated...
-           *
-           * If we're "stuck", that means there is no more short-
-           * circuiting, no more undelegating, no more anything
-           * that can be done.  So we cannot have any terms of the
-           * form Or(true, X) or And(false, X), since those terms
-           * immediately short-circuit.  Furthermore, being stuck
-           * also requires a system of equations which is
-           * intrinsically recursive in some way.  Thus, we could
-           * make progress by picking a non-Solved/Delegate variable
-           * and hypothesizing it has a particular truth value, and
-           * the system would eventually loop back around to
-           * calculating a value for that original value derived
-           * from the hypothesis.  Presumably, any hypothesis which
-           * does not derive a contradiction would be a valid
-           * solution.
-           *
-           * Critically though, we do not have a negation constraint.
-           * The only way that a contradiction can be derived is if
-           * there exists some way to build a cyclic path which
-           * "flips" a hypothesis to its negation.  There are only
-           * two forms in our algebra which can achieve on some input:
-           * Or(true, X) and And(false, X), with the former flipping
-           * false to true, and the latter flipping true to false.
-           * However, we've already ruled out the existence of those
-           * terms since we are stuck in the first place, meaning that
-           * there would be no hypothesis which could derive to a
-           * contradiction by any stuck cycle.  Either true or false
-           * would be valid answers.
-           *
-           * At this point, we take a step back and look at the
-           * broader semantic picture.  An answer of "true" in the case
-           * of an intrinsically recursive constraint set would mean
-           * that the `finish` function should be able to produce a
-           * non-error result given enough "looping".  This is clearly
-           * incorrect.  In fact, in the semantics of PWD, any
-           * intrinsically set of variables must ALL correspond to
-           * false in the question of nullability, as `finish` would
-           * discover when it runs into the cycles.
-           */
-          if (cs2 == cs) {
-            nullableMemo = False
-            false
-          } else {
-            solveAll(cs2)
-          }
-
+        /*
+         * Ok, this gets a little complicated...
+         *
+         * If we're "stuck", that means there is no more short-
+         * circuiting, no more undelegating, no more anything
+         * that can be done.  So we cannot have any terms of the
+         * form Or(true, X) or And(false, X), since those terms
+         * immediately short-circuit.  Furthermore, being stuck
+         * also requires a system of equations which is
+         * intrinsically recursive in some way.  Thus, we could
+         * make progress by picking a non-Solved/Delegate variable
+         * and hypothesizing it has a particular truth value, and
+         * the system would eventually loop back around to
+         * calculating a value for that original value derived
+         * from the hypothesis.  Presumably, any hypothesis which
+         * does not derive a contradiction would be a valid
+         * solution.
+         *
+         * Critically though, we do not have a negation constraint.
+         * The only way that a contradiction can be derived is if
+         * there exists some way to build a cyclic path which
+         * "flips" a hypothesis to its negation.  There are only
+         * two forms in our algebra which can achieve on some input:
+         * Or(true, X) and And(false, X), with the former flipping
+         * false to true, and the latter flipping true to false.
+         * However, we've already ruled out the existence of those
+         * terms since we are stuck in the first place, meaning that
+         * there would be no hypothesis which could derive to a
+         * contradiction by any stuck cycle.  Either true or false
+         * would be valid answers.
+         *
+         * At this point, we take a step back and look at the
+         * broader semantic picture.  An answer of "true" in the case
+         * of an intrinsically recursive constraint set would mean
+         * that the `finish` function should be able to produce a
+         * non-error result given enough "looping".  This is clearly
+         * incorrect.  In fact, in the semantics of PWD, any
+         * intrinsically set of variables must ALL correspond to
+         * false in the question of nullability, as `finish` would
+         * discover when it runs into the cycles.
+         */
+        case Maybe =>
+          nullableMemo = False
+          false
       }
+    } else {
+      nullableMemo.toBoolean
     }
-
-    solveAll(constraints(this, Set()))
   }
 
   // memoized version of derive
