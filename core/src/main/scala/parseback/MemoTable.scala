@@ -18,8 +18,6 @@ package parseback
 
 import scala.collection.mutable
 
-import util.EitherSyntax._
-
 // TODO this could be a TON more optimized with some specialized data structures
 // TODO it may be possible to retain SOME results between derivations (just not those which involve Apply)
 private[parseback] final class MemoTable {
@@ -27,7 +25,7 @@ private[parseback] final class MemoTable {
 
   // still using the single-derivation optimization here
   private val derivations: mutable.Map[ParserId[_], (Char, Parser[_])] = mutable.Map()
-  private val finishes: mutable.Map[ParserId[_], List[ParseError] \/ List[_]] = mutable.Map()
+  private val finishes: mutable.Map[ParserId[_], Results.Cacheable[_]] = mutable.Map()
 
   def derived[A](from: Parser[A], c: Char, to: Parser[A]): this.type = {
     derivations(new ParserId(from)) = (c, to)
@@ -41,26 +39,16 @@ private[parseback] final class MemoTable {
     derivations get id filter { _._1 == c } map { _._2.asInstanceOf[Parser[A]] }
   }
 
-  def finished[A](target: Parser[A], results: List[ParseError] \/ List[A]): this.type = {
-    val results2 = results.left map { errors =>
-      errors filter {
-        case ParseError.UnboundedRecursion(_) => false
-        case _ => true
-      }
-    }
-
-    results2 match {
-      case -\/(Nil) | \/-(Nil) => ()
-      case _ => finishes(new ParserId(target)) = results2
-    }
+  def finished[A](target: Parser[A], results: Results.Cacheable[A]): this.type = {
+    finishes(new ParserId(target)) = results
 
     this
   }
 
-  def finish[A](target: Parser[A]): Option[List[ParseError] \/ List[A]] = {
+  def finish[A](target: Parser[A]): Option[Results.Cacheable[A]] = {
     val id = new ParserId(target)
 
-    finishes get id map { _.asInstanceOf[List[ParseError] \/ List[A]] }
+    finishes get id map { _.asInstanceOf[Results.Cacheable[A]] }
   }
 }
 

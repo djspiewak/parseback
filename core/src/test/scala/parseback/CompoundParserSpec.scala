@@ -94,32 +94,6 @@ object CompoundParserSpec extends ParsebackSpec {
     }
 
     "not bug out randomly" in {
-      /*{
-        import ParseError._
-
-        lazy val a = b ~ "c"
-
-        lazy val failures = (
-            Parser.Failure(List(UnexpectedTrailingCharacters(Line("bca", 0, 0))))
-          | Parser.Failure(List(UnexpectedCharacter(Line("bca", 0, 0), Set("a"))))
-        )
-
-        lazy val b: Parser[Any] = (
-            failures ~ c
-          | Parser.Epsilon("b")
-          | b ~ "c"
-        )
-
-        lazy val c: Parser[Any] = (
-            "b"
-          | (Parser.Epsilon(()) | "a") ~ c ~ "c"
-        )
-
-        b.isNullable must beTrue
-
-        println(b.finish(Set(), new MemoTable))
-      }*/
-
       lazy val c: Parser[Any] = (
           "b"
         | (() | "a") ~ c ~ "c"
@@ -144,7 +118,7 @@ object CompoundParserSpec extends ParsebackSpec {
 
       s must not(throwA[Throwable])
 
-      // s must recognize("abba")
+      s must recognize("abba")
       s must recognize("bbbbbbba")
       s must recognize("d")
       s must recognize("aaaaaaaabbbbbbbbba")

@@ -86,7 +86,7 @@ sealed trait Parser[+A] {
         Monad[F].flatMap(ls2)(inner(derivation))
 
       case Empty() =>
-        Monad[F] point self.finish(Set(), new MemoTable)
+        Monad[F] point self.finish(Set(), new MemoTable).toEither
     }
 
     val recompiled =
@@ -217,9 +217,9 @@ sealed trait Parser[+A] {
   // TODO generalize to deriving in bulk, rather than by character
   protected def _derive(line: Line, table: MemoTable): Parser[A]
 
-  protected[parseback] final def finish(seen: Set[Parser[_]], table: MemoTable): List[ParseError] \/ List[A] = {
+  protected[parseback] final def finish(seen: Set[Parser[_]], table: MemoTable): Results[A] = {
     if (seen contains this) {
-      -\/(ParseError.UnboundedRecursion(this) :: Nil)
+      Results.Hypothetical(ParseError.UnboundedRecursion(this) :: Nil)
     } else {
       val cached = table.finish(this)
 
@@ -229,7 +229,11 @@ sealed trait Parser[+A] {
 
       val back = cached getOrElse {
         val back = _finish(seen + this, table)
-        table.finished(this, back)
+
+        back match {
+          case back: Results.Cacheable[A] => table.finished(this, back)
+          case _ => ()
+        }
 
         trace(s"finished fresh calculation $this => $back")
 
@@ -240,7 +244,7 @@ sealed trait Parser[+A] {
     }
   }
 
-  protected def _finish(seen: Set[Parser[_]], table: MemoTable): List[ParseError] \/ List[A]
+  protected def _finish(seen: Set[Parser[_]], table: MemoTable): Results[A]
 }
 
 object Parser {
@@ -262,43 +266,12 @@ object Parser {
 
         lazy val nonNulled = left.derive(line, table) ~ right
 
-        left.finish(Set(), table) match {
-          case -\/(_) =>
-            def deepRender(self: Parser[_], seen: Set[Parser[_]]): String = {
-              if (seen contains self) {
-                System.identityHashCode(self).toString
-              } else {
-                self match {
-                  case self @ Union(_, _) =>
-                    val seen2 = seen + self
-                    val id = System.identityHashCode(self)
+        left.finish(Set(), table).toEither match {
 
-                    s"(${deepRender(self.left, seen2)} |$id| ${deepRender(self.right, seen2)})"
-
-                  case Sequence(left, right) =>
-                    s"(${deepRender(left, seen)} ~ ${deepRender(right, seen)})"
-
-                  case Apply(inner, _, _) =>
-                    deepRender(inner, seen)
-
-                  case Literal(lit, offset) =>
-                    s"'${lit substring offset}'"
-
-                  case Regex(r) =>
-                    s"/$r/"
-
-                  case Epsilon(a) =>
-                    s"ε($a)"
-
-                  case Failure(errs) =>
-                    s"∅($errs)"
-                }
-              }
-            }
-
-            println("!!!!!!!!! " + deepRender(this, Set()))
-
-            throw new AssertionError("semantic mismatch between isNullable and finish")
+          /*
+           * Failure is nullable, but it will return a left when finished
+           */
+          case -\/(_) => nonNulled
 
           case \/-(results) =>
             nonNulled | Apply(right.derive(line, table), { (_, b: B) => results map { (_, b) } })
@@ -310,10 +283,7 @@ object Parser {
     }
 
     protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
-      for {
-        lf <- left.finish(seen, table)
-        rf <- right.finish(seen, table)
-      } yield lf flatMap { l => rf map { r => (l, r) } }
+      left.finish(seen, table) && right.finish(seen, table)
   }
 
   final case class Union[+A](_left: () => Parser[A], _right: () => Parser[A]) extends Parser[A] {
@@ -323,21 +293,8 @@ object Parser {
     protected def _derive(line: Line, table: MemoTable): Parser[A] =
       left.derive(line, table) | right.derive(line, table)
 
-    protected def _finish(seen: Set[Parser[_]], table: MemoTable) = {
-      val lf = left.finish(seen, table)
-      val rf = right.finish(seen, table)
-
-      (lf, rf) match {
-        case (-\/(lErr), -\/(rErr)) =>
-          -\/(ParseError.prioritize(lErr ::: rErr))
-
-        case (\/-(lRes), \/-(rRes)) =>
-          \/-(lRes ::: rRes)
-
-        case _ =>
-          lf.fold(_ => rf, v => \/-(v))
-      }
-    }
+    protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
+      left.finish(seen, table) || right.finish(seen, table)
   }
 
   final case class Apply[A, +B](target: Parser[A], f: (List[Line], A) => List[B], lines: Vector[Line] = Vector.empty) extends Parser[B] {
@@ -353,7 +310,7 @@ object Parser {
       Apply(target.derive(line, table), f, lines :+ line)
 
     protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
-      target.finish(seen, table) map { rs => rs flatMap { f(lines.toList, _) } }
+      target.finish(seen, table) pmap { rs => rs flatMap { f(lines.toList, _) } }
   }
 
   final case class Literal(literal: String, offset: Int = 0)(implicit W: Whitespace) extends Parser[String] {
@@ -380,7 +337,7 @@ object Parser {
     }
 
     protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
-      -\/(ParseError.UnexpectedEOF(Set(literal substring offset)) :: Nil)
+      Results.Failure(ParseError.UnexpectedEOF(Set(literal substring offset)) :: Nil)
   }
 
   // note that regular expressions cannot cross line boundaries
@@ -413,7 +370,7 @@ object Parser {
     }
 
     protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
-      -\/(ParseError.UnexpectedEOF(Set(r.toString)) :: Nil)
+      Results.Failure(ParseError.UnexpectedEOF(Set(r.toString)) :: Nil)
   }
 
   final case class Epsilon[+A](value: A) extends Parser[A] {
@@ -424,7 +381,8 @@ object Parser {
     protected def _derive(line: Line, table: MemoTable): Parser[A] =
       Failure(ParseError.UnexpectedTrailingCharacters(line) :: Nil)
 
-    protected def _finish(seen: Set[Parser[_]], table: MemoTable) = \/-(value :: Nil)
+    protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
+      Results.Success(value :: Nil)
   }
 
   final case class Failure(errors: List[ParseError]) extends Parser[Nothing] {
@@ -432,6 +390,7 @@ object Parser {
 
     protected def _derive(line: Line, table: MemoTable): Parser[Nothing] = this
 
-    protected def _finish(seen: Set[Parser[_]], table: MemoTable) = -\/(errors)
+    protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
+      Results.Failure(errors)
   }
 }
