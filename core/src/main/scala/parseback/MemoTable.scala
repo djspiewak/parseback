@@ -42,7 +42,17 @@ private[parseback] final class MemoTable {
   }
 
   def finished[A](target: Parser[A], results: List[ParseError] \/ List[A]): this.type = {
-    finishes(new ParserId(target)) = results
+    val results2 = results.left map { errors =>
+      errors filter {
+        case ParseError.UnboundedRecursion(_) => false
+        case _ => true
+      }
+    }
+
+    results2 match {
+      case -\/(Nil) | \/-(Nil) => ()
+      case _ => finishes(new ParserId(target)) = results2
+    }
 
     this
   }

@@ -20,7 +20,7 @@ package object parseback {
 
   // TODO macroize
   private[parseback] def trace(str: => String): Unit = {
-    // println(str)
+    println(str)
   }
 
   // external syntax

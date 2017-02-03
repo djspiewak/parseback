@@ -24,6 +24,8 @@ import util.EitherSyntax._
 
 sealed trait Parser[+A] {
 
+  // this is not volatile since the common case is not crossing thread boundaries
+  // the consequence of a thread-local cache miss is simply recomputation
   protected var nullableMemo: Nullable = Nullable.Maybe
 
   def map[B](f: A => B): Parser[B] = Parser.Apply(this, { (_, a: A) => f(a) :: Nil })
@@ -102,7 +104,7 @@ sealed trait Parser[+A] {
     import Nullable._
     import Parser._
 
-    def inner(p: Parser[_], tracked: Set[Parser[_]] = Set()): Nullable = {
+    def inner(p: Parser[_], tracked: Set[Parser[_]]): Nullable = {
       if ((tracked contains p) || p.nullableMemo != Maybe) {
         p.nullableMemo
       } else {
@@ -123,7 +125,7 @@ sealed trait Parser[+A] {
             p.nullableMemo = inner(target, tracked + p)
             p.nullableMemo
 
-          // the following two cases should never be hit, but they
+          // the following four cases should never be hit, but they
           // are correctly defined here for documentation purposes
           case p @ Literal(_, _) =>
             p.nullableMemo = False
@@ -145,7 +147,7 @@ sealed trait Parser[+A] {
     }
 
     if (nullableMemo == Maybe) {
-      inner(this) match {
+      inner(this, Set()) match {
         case True => true
         case False => false
 
@@ -200,7 +202,7 @@ sealed trait Parser[+A] {
   }
 
   // memoized version of derive
-  protected final def derive(line: Line, table: MemoTable): Parser[A] = {
+  protected[parseback] final def derive(line: Line, table: MemoTable): Parser[A] = {
     require(!line.isEmpty)
 
     trace(s"deriving $this by '${line.head}'")
@@ -215,25 +217,29 @@ sealed trait Parser[+A] {
   // TODO generalize to deriving in bulk, rather than by character
   protected def _derive(line: Line, table: MemoTable): Parser[A]
 
-  protected final def finish(seen: Set[Parser[_]], table: MemoTable): List[ParseError] \/ List[A] = {
+  protected[parseback] final def finish(seen: Set[Parser[_]], table: MemoTable): List[ParseError] \/ List[A] = {
     if (seen contains this) {
       -\/(ParseError.UnboundedRecursion(this) :: Nil)
     } else {
-      val back = table.finish(this) getOrElse {
-        val back = _finish(seen + this, table)
-        table.finished(this, back)
-        back
+      val cached = table.finish(this)
+
+      cached foreach { back =>
+        trace(s"finished from cache $this => $back")
       }
 
-      trace(s"finished $this => $back")
+      val back = cached getOrElse {
+        val back = _finish(seen + this, table)
+        table.finished(this, back)
+
+        trace(s"finished fresh calculation $this => $back")
+
+        back
+      }
 
       back
     }
   }
 
-  /**
-   * If isNullable == false, then finish ~= -\/(_)
-   */
   protected def _finish(seen: Set[Parser[_]], table: MemoTable): List[ParseError] \/ List[A]
 }
 
@@ -257,7 +263,43 @@ object Parser {
         lazy val nonNulled = left.derive(line, table) ~ right
 
         left.finish(Set(), table) match {
-          case -\/(_) => nonNulled
+          case -\/(_) =>
+            def deepRender(self: Parser[_], seen: Set[Parser[_]]): String = {
+              if (seen contains self) {
+                System.identityHashCode(self).toString
+              } else {
+                self match {
+                  case self @ Union(_, _) =>
+                    val seen2 = seen + self
+                    val id = System.identityHashCode(self)
+
+                    s"(${deepRender(self.left, seen2)} |$id| ${deepRender(self.right, seen2)})"
+
+                  case Sequence(left, right) =>
+                    s"(${deepRender(left, seen)} ~ ${deepRender(right, seen)})"
+
+                  case Apply(inner, _, _) =>
+                    deepRender(inner, seen)
+
+                  case Literal(lit, offset) =>
+                    s"'${lit substring offset}'"
+
+                  case Regex(r) =>
+                    s"/$r/"
+
+                  case Epsilon(a) =>
+                    s"ε($a)"
+
+                  case Failure(errs) =>
+                    s"∅($errs)"
+                }
+              }
+            }
+
+            println("!!!!!!!!! " + deepRender(this, Set()))
+
+            throw new AssertionError("semantic mismatch between isNullable and finish")
+
           case \/-(results) =>
             nonNulled | Apply(right.derive(line, table), { (_, b: B) => results map { (_, b) } })
         }

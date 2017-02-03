@@ -103,5 +103,13 @@ object NullabilitySpec extends ParsebackSpec {
 
       left.isNullable must beTrue
     }
+
+    "detect nullability in Michael's example" in {
+      lazy val a: Parser[Any] = b ~ c
+      lazy val b: Parser[Any] = c | () ^^^ ""
+      lazy val c: Parser[Any] = b | "x"
+
+      a.isNullable must beTrue
+    }
   }
 }

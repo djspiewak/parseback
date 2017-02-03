@@ -21,6 +21,7 @@ import cats.Eval
 import util.EitherSyntax._
 
 object CompoundParserSpec extends ParsebackSpec {
+  import ParseError._
 
   "compound non-terminal parsers" should {
     "parse an unambiguous right-recursive grammar" in {
@@ -77,25 +78,73 @@ object CompoundParserSpec extends ParsebackSpec {
       p must recognize("aa")
       p must recognize((0 to 256).foldLeft("") { (s, _) => s + "a" })
       p must recognize("aaaaa")
+
+      p must failToParse("")(UnexpectedEOF(Set("a")))
+    }
+
+    "parse an unambiguous hidden left-recursive grammar" in {
+      lazy val p: Parser[Any] = (
+          (() | "a") ~ p ~ "b"
+        | "b"
+      )
+
+      p must recognize("aabbb")
+      p must recognize("abbb")
+      p must recognize("bbbbbb")
+    }
+
+    "not bug out randomly" in {
+      /*{
+        import ParseError._
+
+        lazy val a = b ~ "c"
+
+        lazy val failures = (
+            Parser.Failure(List(UnexpectedTrailingCharacters(Line("bca", 0, 0))))
+          | Parser.Failure(List(UnexpectedCharacter(Line("bca", 0, 0), Set("a"))))
+        )
+
+        lazy val b: Parser[Any] = (
+            failures ~ c
+          | Parser.Epsilon("b")
+          | b ~ "c"
+        )
+
+        lazy val c: Parser[Any] = (
+            "b"
+          | (Parser.Epsilon(()) | "a") ~ c ~ "c"
+        )
+
+        b.isNullable must beTrue
+
+        println(b.finish(Set(), new MemoTable))
+      }*/
+
+      lazy val c: Parser[Any] = (
+          "b"
+        | (() | "a") ~ c ~ "c"
+      )
+
+      val s = c ~ "a"
+
+      s must recognize("bca")
     }
 
     "parse Gamma_1" in {
-      val b = () ^^^ "" | "a"
-
-      lazy val c: Parser[String] = (
+      lazy val c: Parser[Any] = (
           "b"
-        | b ~ c ~ "b" ^^ { (_, b, c, s) => b + c + s }
-        | "b" ~ "b"  ^^^ "bb"
+        | (() | "a") ~ c ~ "b"
+        | "b" ~ "b"
       )
 
       val s = (
-          c ~ "a" ^^ { (_, c, a) => c + a }
+          c ~ "a"
         | "d"
       )
 
       s must not(throwA[Throwable])
 
-      s must recognize("abba")
+      // s must recognize("abba")
       s must recognize("bbbbbbba")
       s must recognize("d")
       s must recognize("aaaaaaaabbbbbbbbba")
