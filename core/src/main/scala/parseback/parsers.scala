@@ -202,7 +202,7 @@ sealed trait Parser[+A] {
   }
 
   // memoized version of derive
-  protected[parseback] final def derive(line: Line, table: MemoTable): Parser[A] = {
+  protected final def derive(line: Line, table: MemoTable): Parser[A] = {
     require(!line.isEmpty)
 
     trace(s"deriving $this by '${line.head}'")
@@ -217,7 +217,7 @@ sealed trait Parser[+A] {
   // TODO generalize to deriving in bulk, rather than by character
   protected def _derive(line: Line, table: MemoTable): Parser[A]
 
-  protected[parseback] final def finish(seen: Set[Parser[_]], table: MemoTable): Results[A] = {
+  protected final def finish(seen: Set[Parser[_]], table: MemoTable): Results[A] = {
     if (seen contains this) {
       Results.Hypothetical(ParseError.UnboundedRecursion(this) :: Nil)
     } else {
