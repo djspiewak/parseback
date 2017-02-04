@@ -23,8 +23,7 @@ sealed trait LineStream[F[+_]] extends Product with Serializable {
   import LineStream._
 
   /**
-   * Eliminates *leading* empty lines.  Once a non-empty line is hit,
-   * the remainder of the stream is ignored.  This is lazy within the
+   * Eliminates empty lines.  This is lazy within the
    * monad, and thus does not force IO.
    */
   final def normalize(implicit F: Monad[F]): F[LineStream[F]] = this match {

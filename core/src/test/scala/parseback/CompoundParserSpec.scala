@@ -190,7 +190,7 @@ object CompoundParserSpec extends ParsebackSpec {
 
 
       expr must parseOk(input)(8)
-    }
+    }.pendingUntilFixed     // TODO line emptiness
 
     "produce all possible results with recursive ambiguity" in {
       implicit val W = Whitespace("""[ \t]+"""r)  // process newlines separately
@@ -260,7 +260,7 @@ object CompoundParserSpec extends ParsebackSpec {
           }
         }
       }
-    }
+    }.pendingUntilFixed       // TODO end-of-line matching
 
     "avoid greedy matching on a local ambiguity" in {
       sealed trait Expr
