@@ -34,7 +34,7 @@ object RegexSpec extends ParsebackSpec {
     }
 
     "handle a simple arithmetic grammar with whitespace" in {
-      implicit val W = Whitespace("""\s+""".r)
+      implicit val W = Whitespace(() | """\s+""".r)
 
       lazy val expr: Parser[Int] = (
           expr ~ "+" ~ expr ^^ { (_, a, _, b) => a + b }
@@ -46,7 +46,7 @@ object RegexSpec extends ParsebackSpec {
     }
 
     "handle a simple arithmetic grammar with trailing whitespace" in {
-      implicit val W = Whitespace("""\s+""".r)
+      implicit val W = Whitespace(() | """\s+""".r)
 
       lazy val expr: Parser[Int] = (
           expr ~ "+" ~ expr ^^ { (_, a, _, b) => a + b }

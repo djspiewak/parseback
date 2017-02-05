@@ -35,14 +35,20 @@ sealed trait Parser[+A] {
 
   final def map2[B, C](that: Parser[B])(f: (A, B) => C): Parser[C] = (this ~ that) map f.tupled
 
-  final def ~[B](that: Parser[B]): Parser[A ~ B] = Parser.Sequence(this, that)
+  // TODO come up with a better name
+  final def ~!~[B](that: Parser[B]): Parser[A ~ B] =
+    Parser.Sequence(this, None, that)
 
-  final def ~(): Parser[A ~ Unit] = Parser.Sequence(this, unit(()))
+  final def ~[B](that: Parser[B])(implicit W: Whitespace): Parser[A ~ B] =
+    Parser.Sequence(this, W.layout, that)
 
-  final def ~>[B](that: Parser[B]): Parser[B] =
+  final def ~()(implicit W: Whitespace): Parser[A ~ Unit] =
+    Parser.Sequence(this, W.layout, unit(()))
+
+  final def ~>[B](that: Parser[B])(implicit W: Whitespace): Parser[B] =
     (this ~ that) map { case _ ~ b => b }
 
-  final def <~[B](that: Parser[B]): Parser[A] =
+  final def <~[B](that: Parser[B])(implicit W: Whitespace): Parser[A] =
     (this ~ that) map { case a ~ _ => a }
 
   def ^^^[B](b: B): Parser[B] = map { _ => b }
@@ -60,20 +66,6 @@ sealed trait Parser[+A] {
   final def apply[F[+_]: Monad](ls: LineStream[F])(implicit W: Whitespace): F[List[ParseError] \/ List[A]] = {
     import LineStream._
 
-    def stripTrailing(r: SRegex)(ls: LineStream[F]): F[LineStream[F]] = ls match {
-      case More(line, tail) =>
-        Monad[F].map(tail) {
-          case ls @ More(_, _) =>
-            More(line, stripTrailing(r)(ls))
-
-          case Empty() =>
-            val base2 = r.replaceAllIn(line.base, "")
-            More(Line(base2, line.lineNo, line.colNo), Monad[F] point Empty[F]())
-        }
-
-      case Empty() => Monad[F] point Empty[F]()
-    }
-
     def inner(self: Parser[A])(ls: LineStream[F]): F[List[ParseError] \/ List[A]] = ls match {
       case More(line, tail) =>
         trace(s"current line = ${line.project}")
@@ -89,15 +81,13 @@ sealed trait Parser[+A] {
         Monad[F] point self.finish(Set(), new MemoTable).toEither
     }
 
-    val recompiled =
-      Some(s"""${W.regex.toString}$$"""r) filter { _ => W.regex.toString != "" }
+    val wrapped = W.layout map { ws =>
+      ws ~!~ this ~!~ ws map {
+        case ((_, v), _) => v   // we don't care about whitespace results
+      }
+    } getOrElse this
 
-    val stripper =
-      recompiled map stripTrailing getOrElse { ls: LineStream[F] => Monad[F] point ls }
-
-    val prepped = Monad[F].flatMap(stripper(ls)) { _.normalize }
-
-    Monad[F].flatMap(prepped)(inner(this))
+    inner(wrapped)(ls)
   }
 
   protected[parseback] final def isNullable: Boolean = {
@@ -109,10 +99,12 @@ sealed trait Parser[+A] {
         p.nullableMemo
       } else {
         p match {
-          case p @ Sequence(left, right) =>
+          case p @ Sequence(left, layout, right) =>
             val tracked2 = tracked + p
 
-            p.nullableMemo = inner(left, tracked2) && inner(right, tracked2)
+            val wsNullable = layout map { inner(_, tracked2) } getOrElse True
+
+            p.nullableMemo = inner(left, tracked2) && wsNullable && inner(right, tracked2)
             p.nullableMemo
 
           case p @ Union(_, _) =>
@@ -255,16 +247,23 @@ object Parser {
     def map[A, B](fa: Parser[A])(f: A => B): Parser[B] = fa map f
   }
 
-  final case class Sequence[+A, +B](left: Parser[A], right: Parser[B]) extends Parser[A ~ B] {
-    nullableMemo = left.nullableMemo && right.nullableMemo
+  /**
+   * Two sequentialized parsers with optionally interleaving whitespace.
+   */
+  final case class Sequence[+A, +B](left: Parser[A], layout: Option[Parser[_]], right: Parser[B]) extends Parser[A ~ B] {
+    nullableMemo = {
+      val wsNullable = layout map { _.nullableMemo } getOrElse Nullable.True
+
+      left.nullableMemo && wsNullable && right.nullableMemo
+    }
 
     protected def _derive(line: Line, table: MemoTable): Parser[A ~ B] = {
       trace(s">> deriving $this")
 
+      lazy val nonNulled = Sequence(left.derive(line, table), layout, right)
+
       if (left.isNullable) {
         trace(s"  >> left is nullable")
-
-        lazy val nonNulled = left.derive(line, table) ~ right
 
         left.finish(Set(), table).toEither match {
 
@@ -274,16 +273,37 @@ object Parser {
           case -\/(_) => nonNulled
 
           case \/-(results) =>
-            nonNulled | Apply(right.derive(line, table), { (_, b: B) => results map { (_, b) } })
+            // iff we have interleaving whitespace, rewrite self to
+            // have whitespace be the new left, interleaved with no
+            // new whitespace
+            lazy val rhs = layout map { ws =>
+              val withWhitespace = Sequence(ws, None, right) map {
+                case (_, r) => r
+              }
+
+              if (ws.isNullable)
+                right | withWhitespace
+              else
+                withWhitespace
+            } getOrElse right
+
+            nonNulled | Apply(rhs.derive(line, table), { (_, b: B) => results map { (_, b) } })
         }
       } else {
         trace(s"  >> left is not nullable")
-        left.derive(line, table) ~ right
+        nonNulled
       }
     }
 
-    protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
-      left.finish(seen, table) && right.finish(seen, table)
+    protected def _finish(seen: Set[Parser[_]], table: MemoTable) = {
+      val wsFinish = layout map { _.finish(seen, table) } getOrElse Results.Success(() :: Nil)
+
+      val leftFinish = (left.finish(seen, table) && wsFinish) map {
+        case (a, _) => a
+      }
+
+      leftFinish && right.finish(seen, table)
+    }
   }
 
   final case class Union[+A](_left: () => Parser[A], _right: () => Parser[A]) extends Parser[A] {
@@ -313,26 +333,20 @@ object Parser {
       target.finish(seen, table) pmap { rs => rs flatMap { f(lines.toList, _) } }
   }
 
-  final case class Literal(literal: String, offset: Int = 0)(implicit W: Whitespace) extends Parser[String] {
+  final case class Literal(literal: String, offset: Int = 0) extends Parser[String] {
     require(literal.length > 0)
     require(offset < literal.length)
 
     nullableMemo = Nullable.False
 
     protected def _derive(line: Line, table: MemoTable): Parser[String] = {
-      W stripLeading line match {
-        case Some(_) =>
-          this
-
-        case None =>
-          if (literal.charAt(offset) == line.head) {
-            if (offset == literal.length - 1)
-              Epsilon(literal)
-            else
-              Literal(literal, offset + 1)
-          } else {
-            Failure(ParseError.UnexpectedCharacter(line, Set(literal substring offset)) :: Nil)
-          }
+      if (literal.charAt(offset) == line.head) {
+        if (offset == literal.length - 1)
+          Epsilon(literal)
+        else
+          Literal(literal, offset + 1)
+      } else {
+        Failure(ParseError.UnexpectedCharacter(line, Set(literal substring offset)) :: Nil)
       }
     }
 
@@ -341,32 +355,22 @@ object Parser {
   }
 
   // note that regular expressions cannot cross line boundaries
-  final case class Regex(r: SRegex)(implicit W: Whitespace) extends Parser[String] {
+  final case class Regex(r: SRegex) extends Parser[String] {
     require(!r.pattern.matcher("").useAnchoringBounds(false).matches)
 
     nullableMemo = Nullable.False
 
     protected def _derive(line: Line, table: MemoTable): Parser[String] = {
-      W stripLeading line match {
-        case Some(line2) =>
-          val m = r findPrefixOf line2.project
+      val m = r findPrefixOf line.project
 
-          val success = m map { Literal(_) }
-
-          success getOrElse Failure(ParseError.UnexpectedCharacter(line2, Set(r.toString)) :: Nil)
-
-        case None =>
-          val m = r findPrefixOf line.project
-
-          val success = m map { lit =>
-            if (lit.length == 1)
-              Epsilon(lit)
-            else
-              Literal(lit, 1)(Whitespace.Default)     // don't re-strip within a token
-          }
-
-          success getOrElse Failure(ParseError.UnexpectedCharacter(line, Set(r.toString)) :: Nil)
+      val success = m map { lit =>
+        if (lit.length == 1)
+          Epsilon(lit)
+        else
+          Literal(lit, 1)
       }
+
+      success getOrElse Failure(ParseError.UnexpectedCharacter(line, Set(r.toString)) :: Nil)
     }
 
     protected def _finish(seen: Set[Parser[_]], table: MemoTable) =

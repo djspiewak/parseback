@@ -20,7 +20,7 @@ object ArithmeticSpec extends ParsebackSpec {
   import ParseError._
 
   "expression evaluator" should {
-    implicit val W = Whitespace("""\s+"""r)
+    implicit val W = Whitespace(() | """\s+""".r)
 
     lazy val expr: Parser[Int] = (
         expr ~ "+" ~ term ^^ { (_, e, _, t) => e + t }

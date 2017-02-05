@@ -162,7 +162,7 @@ object CompoundParserSpec extends ParsebackSpec {
     }
 
     "parse an unambiguous arithmetic grammar" in {
-      implicit val W = Whitespace("""\s+"""r)
+      implicit val W = Whitespace(() | """\s+""".r)
 
       lazy val expr: Parser[Int] = (
           expr ~ "+" ~ term     ^^ { (_, e1, _, e2) => e1 + e2 }
@@ -193,7 +193,7 @@ object CompoundParserSpec extends ParsebackSpec {
     }.pendingUntilFixed     // TODO line emptiness
 
     "produce all possible results with recursive ambiguity" in {
-      implicit val W = Whitespace("""[ \t]+"""r)  // process newlines separately
+      implicit val W = Whitespace(() | """[ \t]+""".r)  // process newlines separately
 
       lazy val parser = """\s*""".r ~> config <~ """\s*""".r     // allow leading/trailing whitespace
 
@@ -269,7 +269,7 @@ object CompoundParserSpec extends ParsebackSpec {
       case class TicVar(id: String) extends Expr
       case class Dispatch(actuals: Vector[Expr]) extends Expr
 
-      implicit val W = Whitespace("""\s+""".r)
+      implicit val W = Whitespace(() | """\s+""".r)
 
       lazy val expr: Parser[Expr] = (
           "(" ~ formals ~ ")" ~ ":=" ^^ { (_, _, fs, _, _) => Binding(fs) }
@@ -288,7 +288,7 @@ object CompoundParserSpec extends ParsebackSpec {
     }
 
     "handle nested left-recursion" in {
-      implicit val W = Whitespace("""\s+""".r)
+      implicit val W = Whitespace(() | """\s+""".r)
 
       lazy val exp: Parser[Any] = (
           n

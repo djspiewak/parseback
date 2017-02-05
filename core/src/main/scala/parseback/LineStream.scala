@@ -39,10 +39,14 @@ sealed trait LineStream[F[+_]] extends Product with Serializable {
 object LineStream {
 
   def apply[F[+_]: Applicative](str: String): LineStream[F] = {
-    val splits = str split """\r|\r?\n"""
-    val (front, last) = splits splitAt (splits.length - 1)
+    if (str.isEmpty) {
+      Empty()
+    } else {
+      val splits = str split """\r|\r?\n"""
+      val (front, last) = splits splitAt (splits.length - 1)
 
-    apply((front map { _ + "\n" }) ++ last)
+      apply((front map { _ + "\n" }) ++ last)
+    }
   }
 
   def apply[F[+_]: Applicative](lines: Seq[String]): LineStream[F] = {

@@ -16,23 +16,11 @@
 
 package parseback
 
-import scala.util.matching.{Regex => SRegex}
-
-final case class Whitespace(regex: SRegex) extends AnyVal {
-
-  private[parseback] def stripLeading(line: Line): Option[Line] = {
-    if (!regex.toString.isEmpty) {
-      val whitespace = regex findPrefixOf line.project
-
-      whitespace map { w =>
-        line.copy(colNo = line.colNo + w.length)
-      }
-    } else {
-      None
-    }
-  }
-}
+final case class Whitespace(layout: Option[Parser[_]]) extends AnyVal
 
 object Whitespace {
-  implicit val Default = Whitespace(""r)
+  implicit val Default = Whitespace(None)
+
+  def apply(layout: Parser[_]): Whitespace =
+    Whitespace(Some(layout))
 }

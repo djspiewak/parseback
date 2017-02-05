@@ -28,26 +28,26 @@ package object parseback {
   type ~[+A, +B] = (A, B)
   val ~ = Tuple2
 
-  implicit def literal(str: String)(implicit W: Whitespace): Parser[String] = {
+  implicit def literal(str: String): Parser[String] = {
     if (str.isEmpty)
       unit(()) map { _ => str }
     else
       Parser.Literal(str, 0)
   }
 
-  implicit def literalLazy(str: String)(implicit W: Whitespace): LazyParserSyntax[String] =
+  implicit def literalLazy(str: String): LazyParserSyntax[String] =
     LazyParserSyntax(literal(str))
 
-  implicit def literalEager(str: String)(implicit W: Whitespace): EagerParser1Syntax[String] =
+  implicit def literalEager(str: String): EagerParser1Syntax[String] =
     EagerParser1Syntax(literal(str))
 
-  implicit def regex(r: SRegex)(implicit W: Whitespace): Parser[String] =
+  implicit def regex(r: SRegex): Parser[String] =
     Parser.Regex(r)
 
-  implicit def regexLazy(r: SRegex)(implicit W: Whitespace): LazyParserSyntax[String] =
+  implicit def regexLazy(r: SRegex): LazyParserSyntax[String] =
     LazyParserSyntax(regex(r))
 
-  implicit def regexEager(r: SRegex)(implicit W: Whitespace): EagerParser1Syntax[String] =
+  implicit def regexEager(r: SRegex): EagerParser1Syntax[String] =
     EagerParser1Syntax(regex(r))
 
   implicit def unit(u: Unit): Parser[Unit] =
