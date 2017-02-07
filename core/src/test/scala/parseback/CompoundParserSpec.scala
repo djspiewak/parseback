@@ -162,7 +162,13 @@ object CompoundParserSpec extends ParsebackSpec {
     }
 
     "parse an unambiguous arithmetic grammar" in {
-      implicit val W = Whitespace(() | """\s+""".r)
+      implicit val W = Whitespace({
+        implicitly[Whitespace] mustEqual Whitespace.Default
+
+        lazy val p: Parser[Any] = () | p ~ """\s+""".r
+
+        p
+      })
 
       lazy val expr: Parser[Int] = (
           expr ~ "+" ~ term     ^^ { (_, e1, _, e2) => e1 + e2 }
@@ -190,7 +196,7 @@ object CompoundParserSpec extends ParsebackSpec {
 
 
       expr must parseOk(input)(8)
-    }.pendingUntilFixed     // TODO line emptiness
+    }
 
     "produce all possible results with recursive ambiguity" in {
       implicit val W = Whitespace(() | """[ \t]+""".r)  // process newlines separately
