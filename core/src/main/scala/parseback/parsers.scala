@@ -278,14 +278,9 @@ object Parser {
             // have whitespace be the new left, interleaved with no
             // new whitespace
             lazy val rhs = layout map { ws =>
-              val withWhitespace = Sequence(ws, None, right) map {
+              Sequence(ws, None, right) map {
                 case (_, r) => r
               }
-
-              if (ws.isNullable)
-                right | withWhitespace
-              else
-                withWhitespace
             } getOrElse right
 
             nonNulled | Apply(rhs.derive(line, table), { (_, bs: List[B]) =>

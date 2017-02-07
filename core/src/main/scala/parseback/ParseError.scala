@@ -40,6 +40,7 @@ object ParseError {
     /*
      * 1. UnexpectedEOF sorts first
      * 2. Location-bearing errors sort second
+     * 2.1. UnexpectedCharacter sorts ahead of all other location-bearing errors
      * 3. *Later* locations sort before earlier ones
      *
      * Additionally, duplicate errors are removed.
@@ -87,7 +88,10 @@ object ParseError {
           case _ => sys.error("impossible")
         }
 
-        reducedChars.toList ::: right
+        if (reducedChars.isEmpty)
+          right
+        else
+          reducedChars.toList
 
       case Some(_: Meta) =>
         sorted takeWhile { _.isInstanceOf[Meta] }

@@ -38,9 +38,7 @@ object SimpleParserSpec extends ParsebackSpec {
     }
 
     "reject a closing paren" in {
-      p must failToParse(")")(
-        UnexpectedCharacter(Line(")"), Set("(")),
-        UnexpectedTrailingCharacters(Line(")")))
+      p must failToParse(")")(UnexpectedCharacter(Line(")"), Set("(")))
     }
 
     "accept arbitrary nesting" in {   // TODO scalacheck
