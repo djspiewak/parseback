@@ -28,10 +28,11 @@ sealed trait Parser[+A] {
   // the consequence of a thread-local cache miss is simply recomputation
   protected var nullableMemo: Nullable = Nullable.Maybe
 
-  def map[B](f: A => B): Parser[B] = Parser.Apply(this, { (_, a: A) => f(a) :: Nil })
+  def map[B](f: A => B): Parser[B] =
+    Parser.Apply(this, { (_, as: List[A]) => as map f })
 
   def mapWithLines[B](f: (List[Line], A) => B): Parser[B] =
-    Parser.Apply(this, { (line, a: A) => f(line, a) :: Nil })
+    Parser.Apply(this, { (line, as: List[A]) => as map { f(line, _) } })
 
   final def map2[B, C](that: Parser[B])(f: (A, B) => C): Parser[C] = (this ~ that) map f.tupled
 
@@ -287,7 +288,9 @@ object Parser {
                 withWhitespace
             } getOrElse right
 
-            nonNulled | Apply(rhs.derive(line, table), { (_, b: B) => results map { (_, b) } })
+            nonNulled | Apply(rhs.derive(line, table), { (_, bs: List[B]) =>
+              bs flatMap { b => results map { (_, b) } }
+            })
         }
       } else {
         trace(s"  >> left is not nullable")
@@ -317,20 +320,20 @@ object Parser {
       left.finish(seen, table) || right.finish(seen, table)
   }
 
-  final case class Apply[A, +B](target: Parser[A], f: (List[Line], A) => List[B], lines: Vector[Line] = Vector.empty) extends Parser[B] {
+  final case class Apply[A, +B](target: Parser[A], f: (List[Line], List[A]) => List[B], lines: Vector[Line] = Vector.empty) extends Parser[B] {
     nullableMemo = target.nullableMemo
 
     override def map[C](f2: B => C): Parser[C] =
-      Apply(target, { (lines, a: A) => f(lines, a) map f2 }, lines)
+      Apply(target, { (lines, as: List[A]) => f(lines, as) map f2 }, lines)
 
     override def mapWithLines[C](f2: (List[Line], B) => C): Parser[C] =
-      Apply(target, { (lines, a: A) => f(lines, a) map { f2(lines, _) } }, lines)
+      Apply(target, { (lines, a: List[A]) => f(lines, a) map { f2(lines, _) } }, lines)
 
     protected def _derive(line: Line, table: MemoTable): Parser[B] =
       Apply(target.derive(line, table), f, lines :+ line)
 
     protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
-      target.finish(seen, table) pmap { rs => rs flatMap { f(lines.toList, _) } }
+      target.finish(seen, table) pmap { f(lines.toList, _) }
   }
 
   final case class Literal(literal: String, offset: Int = 0) extends Parser[String] {
