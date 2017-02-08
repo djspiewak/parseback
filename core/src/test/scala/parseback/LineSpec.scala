@@ -20,11 +20,41 @@ import org.specs2.mutable._
 
 object LineSpec extends Specification {
 
-  "lines" should {
-    "render carets" in {
+  "line rendering" should {
+    "basically work" in {
       val line = Line("Lorem ipsum dolor sit amet\n", lineNo = 0, colNo = 6)
 
       line.renderError mustEqual "Lorem ipsum dolor sit amet\n      ^"
+    }
+  }
+
+  "line accumulation" should {
+    import Line.addTo
+
+    val line = Line("Lorem ipsom dolor sit amet")
+
+    "add the first line" in {
+      addTo(Vector.empty, line) mustEqual Vector(line)
+    }
+
+    "retain the first line if never advanced by line" in {
+      addTo(Vector(line), line.next.get) mustEqual Vector(line)
+      addTo(Vector(line), line.next.get.next.get) mustEqual Vector(line)
+    }
+
+    "add the second line" in {
+      val line2 = Line("to be or not to be, that is the question", lineNo = 1)
+
+      addTo(Vector(line), line2) mustEqual Vector(line, line2)
+    }
+
+    "retain the first line and the columnar-latest subsequent lines" in {
+      val line2 = Line("to be or not to be, that is the question", lineNo = 1)
+      val line3 = line2.next.get
+      val line4 = line3.next.get
+
+      addTo(Vector(line, line2), line3) mustEqual Vector(line, line3)
+      addTo(Vector(line, line3), line4) mustEqual Vector(line, line4)
     }
   }
 }

@@ -38,3 +38,21 @@ final case class Line(base: String, lineNo: Int = 0, colNo: Int = 0) {
   def renderError: String =
     base + s"${0 until colNo map { _ => ' ' } mkString}^"
 }
+
+object Line extends ((String, Int, Int) => Line) {
+
+  def addTo(lines: Vector[Line], line: Line): Vector[Line] = {
+    if (lines.isEmpty) {
+      Vector(line)
+    } else {
+      val last = lines.last
+
+      if (last.lineNo < line.lineNo)
+        lines :+ line
+      else if (lines.length == 1)
+        lines
+      else
+        lines.updated(lines.length - 1, line)
+    }
+  }
+}

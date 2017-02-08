@@ -325,7 +325,7 @@ object Parser {
       Apply(target, { (lines, a: List[A]) => f(lines, a) map { f2(lines, _) } }, lines)
 
     protected def _derive(line: Line, table: MemoTable): Parser[B] =
-      Apply(target.derive(line, table), f, lines :+ line)
+      Apply(target.derive(line, table), f, Line.addTo(lines, line))
 
     protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
       target.finish(seen, table) pmap { f(lines.toList, _) }
