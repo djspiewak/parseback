@@ -16,10 +16,6 @@
 
 package parseback
 
-import cats.Eval
-
-import util.EitherSyntax._
-
 object CompoundParserSpec extends ParsebackSpec {
   import ParseError._
 
@@ -197,76 +193,6 @@ object CompoundParserSpec extends ParsebackSpec {
 
       expr must parseOk(input)(8)
     }
-
-    "produce all possible results with recursive ambiguity" in {
-      implicit val W = Whitespace(() | """[ \t]+""".r)  // process newlines separately
-
-      lazy val parser = """\s*""".r ~> config <~ """\s*""".r     // allow leading/trailing whitespace
-
-      lazy val maybePairNewlines = (
-          pairs <~ newline ^^ { (_, ps) => Option(ps) }
-        | ()              ^^^ None
-      )
-
-      lazy val config = maybePairNewlines ~ sections ^^ { (_, ps, s) =>
-        ps.getOrElse(Map()) ++ s
-      }
-
-      lazy val sections: Parser[Map[String, String]] = (
-          sections ~ newline ~ section  ^^ { (_, map1, _, map2) => map1 ++ map2 }
-        | section
-        | ()                            ^^^ Map()
-      )
-
-      lazy val section = ("[" ~> id <~ "]") ~ newline ~ config ^^ { (_, id, _, map) =>
-        val back = for ((key, value) <- map) yield (id + '.' + key) -> value
-        back.foldLeft(Map[String, String]()) { _ + _ }
-      }
-
-      lazy val pairs: Parser[Map[String, String]] = (
-          pairs ~ newline ~ pair    ^^ { (_, map, _, i, d) => map + (i -> d) }
-        | pair                      ^^ { (_, i, d) => Map(i -> d) }
-      )
-
-      lazy val pair = id ~ ("=" ~> data)
-
-      lazy val id = """\w+"""r
-      lazy val data = """[^\s]+"""r
-      lazy val newline = """$"""r
-
-      val input = """
-        | [core]
-        |     version = 0
-        |     filemode = true
-        | [remote]
-        |     url = hero
-        |     fetch = boo
-        | """.stripMargin
-
-      val results = parser(LineStream[Eval](input)).value
-
-      results must beLike {
-        case \/-(map1 :: map2 :: Nil) => {
-          if (map1 contains "core.remote.url") {
-            map1 must haveKey("core.filemode")
-            map1 must haveKey("core.remote.fetch")
-            map1 must not(haveKey("remote.url"))
-
-            map2 must haveKey("remote.url")
-            map2 must haveKey("core.filemode")
-            map2 must not(haveKey("core.remote.fetch"))
-          } else {
-            map1 must haveKey("remote.url")
-            map1 must haveKey("core.filemode")
-            map1 must not(haveKey("core.remote.fetch"))
-
-            map2 must haveKey("core.filemode")
-            map2 must haveKey("core.remote.fetch")
-            map2 must not(haveKey("remote.url"))
-          }
-        }
-      }
-    }.pendingUntilFixed       // TODO end-of-line matching
 
     "avoid greedy matching on a local ambiguity" in {
       sealed trait Expr

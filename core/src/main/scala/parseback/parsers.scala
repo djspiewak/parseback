@@ -354,7 +354,7 @@ object Parser {
 
   // note that regular expressions cannot cross line boundaries
   final case class Regex(r: SRegex) extends Parser[String] {
-    require(!r.pattern.matcher("").useAnchoringBounds(false).matches)
+    require(!r.pattern.matcher("").matches)
 
     nullableMemo = Nullable.False
 
