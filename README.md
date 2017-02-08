@@ -32,7 +32,7 @@ Parseback is a Scala implementation of [parsing with derivatives](http://matt.mi
 ```sbt
 resolvers += "bintray-djspiewak-maven" at "http://dl.bintray.com/djspiewak/maven"
 
-val ParsebackVersion = "0.2"
+val ParsebackVersion = "0.2.1"
 
 libraryDependencies += "com.codecommit" %% "parseback-core" % ParsebackVersion
 
@@ -41,7 +41,7 @@ libraryDependencies += "com.codecommit" %% "parseback-cats" % ParsebackVersion
 libraryDependencies += "com.codecommit" %% "parseback-scalaz-72" % ParsebackVersion
 ```
 
-The current, "stable" version of parseback is **0.2**.  Cross builds are available for Scala 2.12 and 2.11.  I say "stable" in scare-quotes because this should obviously be considered fairly experimental software.  It's just barely stable enough that I'm willing to call it an "0.x" release.
+The current, "stable" version of parseback is **0.2.1**.  Cross builds are available for Scala 2.12 and 2.11.  I say "stable" in scare-quotes because this should obviously be considered fairly experimental software.  It's just barely stable enough that I'm willing to call it an "0.x" release.
 
 All stable, numbered releases are signed with [my key](https://keybase.io/djspiewak).
 
