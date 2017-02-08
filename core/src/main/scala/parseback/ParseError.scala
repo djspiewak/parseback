@@ -16,11 +16,19 @@
 
 package parseback
 
-sealed trait ParseError extends Product with Serializable
+sealed trait ParseError extends Product with Serializable {
+
+  def render(streamName: String): String
+}
 
 object ParseError {
   sealed trait WithLoc extends ParseError {
     def loc: Line
+
+    def render(streamName: String): String =
+      s"$streamName:${loc.lineNo + 1}: $renderMessage\n${loc.renderError}"
+
+    protected def renderMessage: String
   }
 
   sealed trait Meta extends ParseError
@@ -100,8 +108,21 @@ object ParseError {
     }
   }
 
-  final case class UnexpectedTrailingCharacters(loc: Line) extends WithLoc
-  final case class UnexpectedCharacter(loc: Line, expected: Set[String]) extends WithLoc
-  final case class UnexpectedEOF(expected: Set[String]) extends ParseError
-  final case class UnboundedRecursion(parser: Parser[_]) extends Meta
+  final case class UnexpectedTrailingCharacters(loc: Line) extends WithLoc {
+    protected def renderMessage = "unexpected trailing characters"
+  }
+
+  final case class UnexpectedCharacter(loc: Line, expected: Set[String]) extends WithLoc {
+    protected def renderMessage =
+      s"unexpected characters; expected ${expected map { str => s"'$str'" } mkString " or "}"
+  }
+
+  final case class UnexpectedEOF(expected: Set[String]) extends ParseError {
+    def render(streamName: String): String =
+      s"$streamName: unexpected end-of-file; expected ${expected map { str => s"'$str'" } mkString " or "}"
+  }
+
+  final case class UnboundedRecursion(parser: Parser[_]) extends Meta {
+    def render(streamName: String): String = s"$streamName: INTERNAL ERROR (unbounded recursion)"
+  }
 }
