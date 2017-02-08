@@ -182,3 +182,6 @@ git.formattedShaVersion := {
     git.baseVersion.value + "-" + sha + suffix
   }
 }
+
+// we need the following because jgit bugs out on symlinks
+git.gitUncommittedChanges := "git status -s".!!.trim.length > 0
