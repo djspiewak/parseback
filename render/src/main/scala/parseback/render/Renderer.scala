@@ -105,7 +105,7 @@ object Renderer {
   }
 
   def render(self: Parser[_]): State[RenderState, RenderResult.TokenSequence] = self match {
-    case Sequence(left, right) =>
+    case Sequence(left, _, right) =>
       State pure (-\/(left) :: -\/(right) :: Nil)
 
     case Union(_, _) =>
