@@ -1,4 +1,4 @@
-# parseback [![Build Status](https://travis-ci.org/djspiewak/parseback.svg?branch=master)](https://travis-ci.org/djspiewak/parseback) [![Gitter](https://badges.gitter.im/djspiewak/parseback.svg)](https://gitter.im/djspiewak/parseback?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+# parseback [![Build Status](https://travis-ci.org/djspiewak/parseback.svg?branch=master)](https://travis-ci.org/djspiewak/parseback) [![Gitter](https://img.shields.io/gitter/room/djspiewak/parseback.svg)](https://gitter.im/djspiewak/parseback) [![Bintray](https://img.shields.io/bintray/v/djspiewak/maven/parseback-core.svg)](https://bintray.com/djspiewak/maven/parseback-core)
 
 > Parsing with derivatives may be viewed as a form of breadth-first
 > recursive descent.  Breadth-first search is orthogonal to depth-first
