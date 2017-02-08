@@ -34,4 +34,7 @@ final case class Line(base: String, lineNo: Int = 0, colNo: Int = 0) {
 
   def isBefore(that: Line): Boolean =
     this.lineNo < that.lineNo || (this.lineNo == that.lineNo && this.colNo < that.colNo)
+
+  def renderError: String =
+    base + s"${0 until colNo map { _ => ' ' } mkString}^"
 }
