@@ -39,6 +39,8 @@ libraryDependencies += "com.codecommit" %% "parseback-core" % ParsebackVersion
 libraryDependencies += "com.codecommit" %% "parseback-cats" % ParsebackVersion
 // or!
 libraryDependencies += "com.codecommit" %% "parseback-scalaz-72" % ParsebackVersion
+// or!
+libraryDependencies += "com.codecommit" %% "parseback-scalaz-71" % ParsebackVersion
 ```
 
 The current, "stable" version of parseback is **0.2.1**.  Cross builds are available for Scala 2.12 and 2.11.  I say "stable" in scare-quotes because this should obviously be considered fairly experimental software.  It's just barely stable enough that I'm willing to call it an "0.x" release.
@@ -46,6 +48,8 @@ The current, "stable" version of parseback is **0.2.1**.  Cross builds are avail
 All stable, numbered releases are signed with [my key](https://keybase.io/djspiewak).
 
 Snapshots are intermittently available.  All snapshots are of the form `[version]-[hash]`, where `[version]` is the *compatible* base version (i.e. the stable version with which the snapshot is compatible).  If that base version is unreleased (i.e. a future release), then full compatibility with the ultimate release is not necessarily guaranteed.  `[hash]` is a seven character prefix of the Git hash from which the snapshot release was made.  Feel free to [make snapshots of your own!](#forks-and-releases).
+
+Note that the Scalaz 7.1 artifact is only available in snapshots *after* hash `03b3d90`.
 
 ## Motivation
 
