@@ -16,6 +16,8 @@
 
 package parseback.util
 
+import shims.{Applicative, Monad, Monoid, Traverse}
+
 import scala.annotation.tailrec
 import scala.collection.mutable
 
@@ -84,6 +86,24 @@ sealed trait Catenable[+A] {
     case Empty => Empty
   }
 
+  /**
+   * Forces the structure in G[_].
+   */
+  final def traverse[G[_], B](f: A => G[B])(implicit G: Applicative[G]): G[Catenable[B]] = this match {
+    case self @ Append(_, _) =>
+      val left2 = self.left traverse f
+      val right2 = self.right traverse f
+
+      val rightF = G.map(right2) { c1 => c2: Catenable[B] =>
+        c1 ++ c2
+      }
+
+      G.ap(left2)(rightF)
+
+    case Single(value) => G.map(f(value)) { Single(_) }
+    case Empty => G point Empty
+  }
+
   final def isEmpty: Boolean = this match {
     case self @ Append(_, _) => self.left.isEmpty && self.right.isEmpty
     case Single(_) => false
@@ -101,6 +121,28 @@ sealed trait Catenable[+A] {
 }
 
 object Catenable {
+
+  implicit val monad: Monad[Catenable] with Traverse[Catenable] = new Monad[Catenable] with Traverse[Catenable] {
+
+    def point[A](a: A) = Single(a)
+
+    def flatMap[A, B](c: Catenable[A])(f: A => Catenable[B]) =
+      c flatMap f
+
+    def map[A, B](c: Catenable[A])(f: A => B) =
+      c map f
+
+    def traverse[G[_]: Applicative, A, B](c: Catenable[A])(f: A => G[B]): G[Catenable[B]] =
+      c traverse f
+  }
+
+  implicit def monoid[A]: Monoid[Catenable[A]] = new Monoid[Catenable[A]] {
+
+    def zero = Empty
+
+    def append(left: Catenable[A], right: => Catenable[A]) =
+      left ++ right
+  }
 
   def empty[A]: Catenable[A] = Empty
 
