@@ -29,6 +29,14 @@ object CatenableSpec extends Specification with ScalaCheck {
       Catenable(xs: _*).toList mustEqual xs
     }
 
+    "implement length matching list" in forAll { xs: List[Int] =>
+      Catenable(xs: _*).length mustEqual xs.length
+    }
+
+    "implement isEmpty matching list" in forAll { xs: List[Int] =>
+      Catenable(xs: _*).isEmpty mustEqual xs.isEmpty
+    }
+
     "not evaluate the right when unconsing the left" in {
       var evaluated = false
 

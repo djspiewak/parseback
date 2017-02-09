@@ -84,6 +84,18 @@ sealed trait Catenable[+A] {
     case Empty => Empty
   }
 
+  final def isEmpty: Boolean = this match {
+    case self @ Append(_, _) => self.left.isEmpty && self.right.isEmpty
+    case Single(_) => false
+    case Empty => true
+  }
+
+  final def length: Int = this match {
+    case self @ Append(_, _) => self.left.length + self.right.length
+    case Single(_) => 1
+    case Empty => 0
+  }
+
   final def toList: List[A] =
     uncons map { case (hd, tail) => hd :: tail.toList } getOrElse Nil
 }
