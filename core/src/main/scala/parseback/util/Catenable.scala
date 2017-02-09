@@ -34,22 +34,34 @@ sealed trait Catenable[+A] {
    */
   final def uncons: Option[(A, Catenable[A])] = this match {
     case self @ Append(_, _) =>
-      val rights = new mutable.ListBuffer[() => Catenable[A]]
+      self.left match {
 
-      @tailrec
-      def loop(self: Catenable[A]): Option[A] = self match {
-        case self @ Append(_, _) =>
-          rights += self._right
-          loop(self.left)
+        // fast-path for when we're already left-biased
+        // this short-circuit isn't necessary (it will
+        // happen in the other case as well), it's just
+        // a little faster since it doesn't allocate a
+        // new ListBuffer
+        case Single(head) =>
+          Some((head, self.right))
 
-        case Single(value) => Some(value)
-        case Empty => None
-      }
+        case _ =>
+          val rights = new mutable.ListBuffer[() => Catenable[A]]
 
-      loop(self.left) map { a =>
-        val tail = rights.foldRight(self._right) { (l, r) => () => Append(l, r) }
+          @tailrec
+          def loop(self: Catenable[A]): Option[A] = self match {
+            case self @ Append(_, _) =>
+              rights += self._right
+              loop(self.left)
 
-        (a, tail())
+            case Single(value) => Some(value)
+            case Empty => None
+          }
+
+          loop(self.left) map { a =>
+            val tail = rights.foldRight(self._right) { (l, r) => () => Append(l, r) }
+
+            (a, tail())
+          }
       }
 
     case Single(value) => Some((value, Empty))
