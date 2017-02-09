@@ -68,6 +68,22 @@ sealed trait Catenable[+A] {
     case Empty => None
   }
 
+  final def map[B](f: A => B): Catenable[B] = this match {
+    case self @ Append(_, _) =>
+      Append(() => self.left map f, () => self.right map f)
+
+    case Single(value) => Single(f(value))
+    case Empty => Empty
+  }
+
+  final def flatMap[B](f: A => Catenable[B]): Catenable[B] = this match {
+    case self @ Append(_, _) => Append(() =>
+      self.left flatMap f, () => self.right flatMap f)
+
+    case Single(value) => f(value)
+    case Empty => Empty
+  }
+
   final def toList: List[A] =
     uncons map { case (hd, tail) => hd :: tail.toList } getOrElse Nil
 }

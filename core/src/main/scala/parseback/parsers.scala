@@ -20,6 +20,7 @@ import shims.{Applicative, Monad}
 
 import scala.util.matching.{Regex => SRegex}
 
+import util.Catenable
 import util.EitherSyntax._
 
 sealed trait Parser[+A] {
@@ -29,10 +30,10 @@ sealed trait Parser[+A] {
   protected var nullableMemo: Nullable = Nullable.Maybe
 
   def map[B](f: A => B): Parser[B] =
-    Parser.Apply(this, { (_, as: List[A]) => as map f })
+    Parser.Apply(this, { (_, as: Catenable[A]) => as map f })
 
   def mapWithLines[B](f: (List[Line], A) => B): Parser[B] =
-    Parser.Apply(this, { (line, as: List[A]) => as map { f(line, _) } })
+    Parser.Apply(this, { (line, as: Catenable[A]) => as map { f(line, _) } })
 
   final def map2[B, C](that: Parser[B])(f: (A, B) => C): Parser[C] = (this ~ that) map f.tupled
 
@@ -64,10 +65,10 @@ sealed trait Parser[+A] {
    * Please note that F[_] should be lazy and stack-safe.  If F[_] is not stack-safe,
    * this function will SOE on inputs with a very large number of lines.
    */
-  final def apply[F[+_]: Monad](ls: LineStream[F])(implicit W: Whitespace): F[List[ParseError] \/ List[A]] = {
+  final def apply[F[+_]: Monad](ls: LineStream[F])(implicit W: Whitespace): F[List[ParseError] \/ Catenable[A]] = {
     import LineStream._
 
-    def inner(self: Parser[A])(ls: LineStream[F]): F[List[ParseError] \/ List[A]] = ls match {
+    def inner(self: Parser[A])(ls: LineStream[F]): F[List[ParseError] \/ Catenable[A]] = ls match {
       case More(line, tail) =>
         trace(s"current line = ${line.project}")
         val derivation = self.derive(line, new MemoTable)   // create a new memo table with each new character
@@ -283,7 +284,7 @@ object Parser {
               }
             } getOrElse right
 
-            nonNulled | Apply(rhs.derive(line, table), { (_, bs: List[B]) =>
+            nonNulled | Apply(rhs.derive(line, table), { (_, bs: Catenable[B]) =>
               bs flatMap { b => results map { (_, b) } }
             })
         }
@@ -294,7 +295,8 @@ object Parser {
     }
 
     protected def _finish(seen: Set[Parser[_]], table: MemoTable) = {
-      val wsFinish = layout map { _.finish(seen, table) } getOrElse Results.Success(() :: Nil)
+      val wsFinish =
+        layout map { _.finish(seen, table) } getOrElse Results.Success(Catenable(()))
 
       val leftFinish = (left.finish(seen, table) && wsFinish) map {
         case (a, _) => a
@@ -315,14 +317,14 @@ object Parser {
       left.finish(seen, table) || right.finish(seen, table)
   }
 
-  final case class Apply[A, +B](target: Parser[A], f: (List[Line], List[A]) => List[B], lines: Vector[Line] = Vector.empty) extends Parser[B] {
+  final case class Apply[A, +B](target: Parser[A], f: (List[Line], Catenable[A]) => Catenable[B], lines: Vector[Line] = Vector.empty) extends Parser[B] {
     nullableMemo = target.nullableMemo
 
     override def map[C](f2: B => C): Parser[C] =
-      Apply(target, { (lines, as: List[A]) => f(lines, as) map f2 }, lines)
+      Apply(target, { (lines, as: Catenable[A]) => f(lines, as) map f2 }, lines)
 
     override def mapWithLines[C](f2: (List[Line], B) => C): Parser[C] =
-      Apply(target, { (lines, a: List[A]) => f(lines, a) map { f2(lines, _) } }, lines)
+      Apply(target, { (lines, a: Catenable[A]) => f(lines, a) map { f2(lines, _) } }, lines)
 
     protected def _derive(line: Line, table: MemoTable): Parser[B] =
       Apply(target.derive(line, table), f, Line.addTo(lines, line))
@@ -384,7 +386,7 @@ object Parser {
       Failure(ParseError.UnexpectedTrailingCharacters(line) :: Nil)
 
     protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
-      Results.Success(value :: Nil)
+      Results.Success(Catenable(value))
   }
 
   final case class Failure(errors: List[ParseError]) extends Parser[Nothing] {

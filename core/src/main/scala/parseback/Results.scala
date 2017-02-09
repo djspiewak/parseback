@@ -16,6 +16,8 @@
 
 package parseback
 
+import util.Catenable
+import util.Catenable.Syntax
 import util.EitherSyntax._
 
 // semantics must mirror Nullable
@@ -24,7 +26,7 @@ sealed trait Results[+A] {
 
   final def map[B](f: A => B): Results[B] = this pmap { _ map f }
 
-  final def pmap[B](f: List[A] => List[B]): Results[B] = this match {
+  final def pmap[B](f: Catenable[A] => Catenable[B]): Results[B] = this match {
     case Success(values) => Success(f(values))
     case Failure(errors) => Failure(errors)
     case Hypothetical(errors) => Hypothetical(errors)
@@ -44,7 +46,7 @@ sealed trait Results[+A] {
   }
 
   final def ||[B >: A](that: Results[B]): Results[B] = (this, that) match {
-    case (Success(v1), Success(v2)) => Success(v1 ::: v2)
+    case (Success(v1), Success(v2)) => Success(v1 ++ v2)
     case (Success(v), Failure(_)) => Success(v)
     case (Failure(_), Success(v)) => Success(v)
     case (Failure(e1), Failure(e2)) => Failure(ParseError.prioritize(e1 ::: e2))
@@ -55,7 +57,7 @@ sealed trait Results[+A] {
     case (Hypothetical(h1), Hypothetical(h2)) => Hypothetical(ParseError.prioritize(h1 ::: h2))
   }
 
-  final def toEither: List[ParseError] \/ List[A] = this match {
+  final def toEither: List[ParseError] \/ Catenable[A] = this match {
     case Success(results) => \/-(results)
     case Failure(errors) => -\/(errors)
     case Hypothetical(errors) => -\/(errors)
@@ -65,7 +67,7 @@ sealed trait Results[+A] {
 object Results {
   sealed trait Cacheable[+A] extends Results[A]
 
-  final case class Success[+A](values: List[A]) extends Cacheable[A]
+  final case class Success[+A](values: Catenable[A]) extends Cacheable[A]
   final case class Failure(errors: List[ParseError]) extends Cacheable[Nothing]
   final case class Hypothetical(errors: List[ParseError]) extends Results[Nothing]
 }

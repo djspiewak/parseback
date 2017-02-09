@@ -31,7 +31,7 @@ trait ParsebackSpec extends Spec with SpecificationFeatures with shims.Implicits
 
     maybeResults match {
       case \/-(results) =>
-        (ambiguityAllowed || results.length == 1,
+        (ambiguityAllowed || results.toList.length == 1,    // TODO implement lengthCompare
           s"recognized '$input'",
           s"recognized '$input', but with multiple results: $results")
 
@@ -47,13 +47,14 @@ trait ParsebackSpec extends Spec with SpecificationFeatures with shims.Implicits
 
     maybeResults match {
       case \/-(actual) =>
-        val permuted = actual flatMap { a => results map { b => (a, b) } }
+        val actualList = actual.toList
+        val permuted = actualList flatMap { a => results map { b => (a, b) } }
 
         val compared = permuted filter {
           case (a, b) => a == b
         }
 
-        (results.length == actual.length && compared.length == results.length,
+        (results.length == actualList.length && compared.length == results.length,
           s"accepted '$input' with results $actual",
           s"accepted '$input' but produced results $actual, expected $results")
 
