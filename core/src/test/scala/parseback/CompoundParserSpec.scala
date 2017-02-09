@@ -119,9 +119,9 @@ object CompoundParserSpec extends ParsebackSpec {
       s must recognize("d")
       s must recognize("aaaaaaaabbbbbbbbba")
 
-      // val prefix = (0 to 20).foldLeft("") { (str, _) => str + "a" }
-      // val suffix = (0 to 50).foldLeft("") { (str, _) => str + "b" }
-      // s must recognize(prefix + suffix + "a")
+      val prefix = (0 to 20).foldLeft("") { (str, _) => str + "a" }
+      val suffix = (0 to 50).foldLeft("") { (str, _) => str + "b" }
+      s must recognize(prefix + suffix + "a")
 
       s must recognize("bba")
     }
@@ -138,7 +138,7 @@ object CompoundParserSpec extends ParsebackSpec {
       s must recognize("b")
       s must recognize("bb")
 
-      // s must recognize((0 to 50).foldLeft("") { (str, _) => str + "b" })
+      s must recognize((0 to 50).foldLeft("") { (str, _) => str + "b" })
 
       s must recognize("bbbbb")
     }
@@ -153,7 +153,7 @@ object CompoundParserSpec extends ParsebackSpec {
 
       s must recognize("b")
       s must recognize("bb")
-      // s must recognize((0 to 50).foldLeft("") { (str, _) => str + "b" })
+      s must recognize((0 to 50).foldLeft("") { (str, _) => str + "b" })
       s must recognize("bbbbb")
     }
 

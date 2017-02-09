@@ -27,6 +27,8 @@ initialCommands := "import parseback._"
 
 scalacOptions in Test += "-Yrangepos"
 
+logBuffered in Test := false
+
 scalacOptions in (Compile, console) ~= (_ filterNot (Set("-Xfatal-warnings", "-Ywarn-unused-import").contains))
 
 scalacOptions in (Test, console) := (scalacOptions in (Compile, console)).value
