@@ -70,6 +70,24 @@ sealed trait Catenable[+A] {
     case Empty => None
   }
 
+  final def filter(p: A => Boolean): Catenable[A] = this match {
+    case self @ Append(_, _) =>
+      Append(() => self.left filter p, () => self.right filter p)
+
+    case Single(value) if p(value) => this
+    case Single(_) => Empty
+    case Empty => Empty
+  }
+
+  final def collect[B](p: PartialFunction[A, B]): Catenable[B] = this match {
+    case self @ Append(_, _) =>
+      Append(() => self.left collect p, () => self.right collect p)
+
+    case Single(value) if p isDefinedAt value => Single(p(value))
+    case Single(_) => Empty
+    case Empty => Empty
+  }
+
   final def map[B](f: A => B): Catenable[B] = this match {
     case self @ Append(_, _) =>
       Append(() => self.left map f, () => self.right map f)
