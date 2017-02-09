@@ -50,7 +50,7 @@ sealed trait Catenable[+A] {
           @tailrec
           def loop(self: Catenable[A]): Option[A] = self match {
             case self @ Append(_, _) =>
-              rights += self._right
+              rights += { () => self.right }
               loop(self.left)
 
             case Single(value) => Some(value)
@@ -58,7 +58,7 @@ sealed trait Catenable[+A] {
           }
 
           loop(self.left) map { a =>
-            val tail = rights.foldRight(self._right) { (l, r) => () => Append(l, r) }
+            val tail = rights.foldRight(() => self.right) { (l, r) => () => Append(l, r) }
 
             (a, tail())
           }
