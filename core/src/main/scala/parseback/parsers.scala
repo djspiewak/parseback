@@ -46,9 +46,6 @@ sealed trait Parser[+A] {
   final def ~[B](that: Parser[B])(implicit W: Whitespace): Parser[A ~ B] =
     Parser.Sequence(this, W.layout, that)
 
-  final def ~()(implicit W: Whitespace): Parser[A ~ Unit] =
-    Parser.Sequence(this, W.layout, unit(()))
-
   final def ~>[B](that: Parser[B])(implicit W: Whitespace): Parser[B] =
     (this ~ that) map { case _ ~ b => b }
 
