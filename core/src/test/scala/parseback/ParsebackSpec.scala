@@ -56,7 +56,7 @@ trait ParsebackSpec extends Spec with SpecificationFeatures with shims.Implicits
 
         (results.length == actualList.length && compared.length == results.length,
           s"accepted '$input' with results $actual",
-          s"accepted '$input' but produced results $actual, expected $results")
+          s"accepted '$input' but produced results $actualList, expected $results")
 
       case -\/(err) =>
         (false, "", s"failed to parse '$input' with error $err")
