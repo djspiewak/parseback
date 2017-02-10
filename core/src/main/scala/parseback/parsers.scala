@@ -37,6 +37,8 @@ sealed trait Parser[+A] {
 
   final def map2[B, C](that: Parser[B])(f: (A, B) => C): Parser[C] = (this ~ that) map f.tupled
 
+  def filter(p: A => Boolean): Parser[A] = Parser.Filter(this, p)
+
   // TODO come up with a better name
   final def ~!~[B](that: Parser[B]): Parser[A ~ B] =
     Parser.Sequence(this, None, that)
@@ -116,6 +118,10 @@ sealed trait Parser[+A] {
             p.nullableMemo
 
           case p @ Apply(target, _, _) =>
+            p.nullableMemo = inner(target, tracked + p)
+            p.nullableMemo
+
+          case p @ Filter(target, _) =>
             p.nullableMemo = inner(target, tracked + p)
             p.nullableMemo
 
@@ -331,6 +337,19 @@ object Parser {
 
     protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
       target.finish(seen, table) pmap { f(lines.toList, _) }
+  }
+
+  final case class Filter[A](target: Parser[A], p: A => Boolean) extends Parser[A] {
+    nullableMemo = target.nullableMemo
+
+    override def filter(p2: A => Boolean): Parser[A] =
+      Filter(target, { a: A => p(a) && p2(a) })
+
+    protected def _derive(line: Line, table: MemoTable) =
+      Filter(target.derive(line, table), p)
+
+    protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
+      target.finish(seen, table) pmap { _ filter p }
   }
 
   final case class Literal(literal: String, offset: Int = 0) extends Parser[String] {

@@ -129,6 +129,9 @@ object Renderer {
     case Apply(target, _, _) =>
       State pure (-\/(target) :: \/-("↪") :: \/-("λ") :: Nil)
 
+    case Filter(target, _) =>
+      State pure (-\/(target) :: Nil)
+
     case Literal(literal, offset) =>
       State pure ((s"'${literal substring offset}'" :: Nil) map { \/-(_) })
 
