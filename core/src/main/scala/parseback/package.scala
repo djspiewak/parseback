@@ -30,7 +30,7 @@ package object parseback {
 
   implicit def literal(str: String): Parser[String] = {
     if (str.isEmpty)
-      unit(()) map { _ => str }
+      Parser.Epsilon("")
     else
       Parser.Literal(str, 0)
   }
