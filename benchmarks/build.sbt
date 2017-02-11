@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-addCommandAlias("measure", "jmh:run -rff results.csv")
+addCommandAlias("measure-all", "jmh:run -rff results.csv")
+addCommandAlias("measure", "jmh:run -rff results.csv .*parseback.*")
 addCommandAlias("profile", "jmh:run -prof jmh.extras.JFR -f 1 .*parseback.*")
 
 libraryDependencies ++= Seq(
