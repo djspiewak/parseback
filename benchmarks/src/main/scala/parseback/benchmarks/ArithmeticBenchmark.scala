@@ -11,7 +11,7 @@ import scala.util.parsing.{combinator => spc}
 @Threads(1)
 class ArithmeticBenchmarks {
 
-  @Param(Array("2", "8", "32", "128"/*, "512", "2048"*/))
+  @Param(Array("2", "4", "8", "16", "32", "64", "128"/*, "512", "2048"*/))
   var size: Int = _
 
   val parseback = {
@@ -64,51 +64,71 @@ class ArithmeticBenchmarks {
 
   object ScalaParserCombinator extends spc.RegexParsers with spc.PackratParsers {
 
-    lazy val expr: Parser[Int] = (
+    lazy val expr: PackratParser[Int] = (
         expr ~ "+" ~ term ^^ { case e ~ _ ~ t => e + t }
       | expr ~ "-" ~ term ^^ { case e ~ _ ~ t => e - t }
       | term
     )
 
-    lazy val term: Parser[Int] = (
+    lazy val term: PackratParser[Int] = (
         term ~ "*" ~ factor ^^ { case e ~ _ ~ f => e * f }
       | term ~ "/" ~ factor ^^ { case e ~ _ ~ f => e / f }
       | factor
     )
 
-    lazy val factor: Parser[Int] = (
+    lazy val factor: PackratParser[Int] = (
         "(" ~> expr <~ ")"
       | "-" ~ factor       ^^ { case _ ~ e => -e }
       | """\d+""".r        ^^ { _.toInt }
     )
 
-    def run(input: String) = parse(expr, input)
+    def run(input: String) = parseAll(expr, input)
   }
 
-  def additionText: String =
-    0 until size map { i => i.toString } mkString "+"
+  val sample: Map[Int, String] = {
+    val operators = Map(
+      0 -> "+",
+      1 -> "-",
+      2 -> "*",
+      3 -> "/")
+
+    def inner(size: Int) = {
+      0 until size map { i =>
+        val neg = if (i % 7 == 0)
+          "-"
+        else
+          ""
+
+        neg + i.toString + operators(i % 4)
+      } drop 1 mkString
+    }
+
+    val sizes = List(2, 4, 8, 16, 32, 64, 128)
+
+    sizes.map({ i => i -> inner(i) })(collection.breakOut)
+  }
 
   @Benchmark
-  def parsebackAddition(): Unit = {
+  def parsebackRun(): Unit = {
     import _root_.parseback.LineStream
     import _root_.parseback.compat.cats._
 
     import cats.Eval
 
-    val stream = LineStream[Eval](additionText)
+    val stream = LineStream[Eval](sample(size))
     parseback(stream).value
   }
 
   @Benchmark
-  def gllAddition(): Unit = {
+  def gllRun(): Unit = {
     import com.codecommit.gll.LineStream
 
-    val stream = LineStream(additionText)
+    val stream = LineStream(sample(size))
     gll(stream)
   }
 
   @Benchmark
-  def spcAddition(): Unit = {
-    ScalaParserCombinator.run(additionText)
+  def spcRun(): Unit = {
+    ScalaParserCombinator.run(sample(size))
   }
 }
