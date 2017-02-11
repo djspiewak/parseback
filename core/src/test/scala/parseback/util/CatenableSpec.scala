@@ -25,8 +25,33 @@ object CatenableSpec extends Specification with ScalaCheck {
   import Prop._
 
   "catenable" should {
-    "retain sequence semantics" in forAll { xs: List[Int] =>
-      Catenable(xs: _*).toList mustEqual xs
+    "retain sequence semantics" in {
+      "with left biasing" >> forAll { xs: List[Int] =>
+        Catenable(xs: _*).toList mustEqual xs
+      }
+
+      "without biasing" >> forAll { xs: List[Int] =>
+        def convert[A](xs: List[A]): Catenable[A] = {
+          if (xs.isEmpty) {
+            Catenable.empty
+          } else if (xs.length == 1) {
+            Catenable(xs: _*)
+          } else {
+            val (left, right) = xs splitAt (xs.length - 1)
+            convert(left) ++ convert(right)
+          }
+        }
+
+        convert(xs).toList mustEqual xs
+      }
+
+      "with right biasing" >> forAll { xs: List[Int] =>
+        val c = xs.foldLeft(Catenable.empty[Int]) { (c, i) =>
+          c ++ Catenable(i)
+        }
+
+        c.toList mustEqual xs
+      }
     }
 
     "implement length matching list" in forAll { xs: List[Int] =>
@@ -35,6 +60,13 @@ object CatenableSpec extends Specification with ScalaCheck {
 
     "implement isEmpty matching list" in forAll { xs: List[Int] =>
       Catenable(xs: _*).isEmpty mustEqual xs.isEmpty
+    }
+
+    "implement filter matching list" in forAll { (xs: List[Int], p: Int => Boolean) =>
+      val actual = Catenable(xs: _*) filter p toList
+      val expect = xs filter p
+
+      actual mustEqual expect
     }
 
     "not evaluate the right when unconsing the left" in {

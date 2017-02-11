@@ -19,7 +19,6 @@ package parseback.util
 import shims.{Applicative, Monad, Monoid, Traverse}
 
 import scala.annotation.tailrec
-import scala.collection.mutable
 
 sealed trait Catenable[+A] {
   import Catenable._
@@ -47,22 +46,42 @@ sealed trait Catenable[+A] {
           Some((head, self.right))
 
         case _ =>
-          val rights = new mutable.ListBuffer[() => Catenable[A]]
+          type Thunk = () => Catenable[A]
 
           @tailrec
-          def loop(self: Catenable[A]): Option[A] = self match {
-            case self @ Append(_, _) =>
-              rights += { () => self.right }
-              loop(self.left)
+          def backtrack(rights: List[Thunk]): Option[(List[Thunk], A)] = {
+            rights match {
+              case self :: tail =>
+                self() match {
+                  case self @ Append(_, _) => deconstruct(self, tail)
+                  case Single(value) => Some((tail, value))
+                  case Empty => backtrack(tail)
+                }
 
-            case Single(value) => Some(value)
-            case Empty => None
+              case Nil => None
+            }
           }
 
-          loop(self.left) map { a =>
-            val tail = rights.foldRight(() => self.right) { (l, r) => () => Append(l, r) }
+          @tailrec
+          def deconstruct(self: Catenable[A], rights: List[Thunk]): Option[(List[Thunk], A)] = {
+            self match {
+              case self @ Append(_, _) =>
+                deconstruct(self.left, { () => self.right } :: rights)
 
-            (a, tail())
+              case Single(value) => Some((rights, value))
+              case Empty => backtrack(rights)
+            }
+          }
+
+          deconstruct(self.left, List(() => self.right)) map {
+            case (rights, a) =>
+              val tailOption = rights reduceRightOption { (l, r) =>
+                () => Append(l, r)
+              }
+
+              val tail = tailOption getOrElse { () => Empty }
+
+              (a, tail())
           }
       }
 
