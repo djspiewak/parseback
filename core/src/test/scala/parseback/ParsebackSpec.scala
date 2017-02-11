@@ -26,12 +26,12 @@ import util.EitherSyntax._
 
 trait ParsebackSpec extends Spec with SpecificationFeatures with shims.Implicits {
 
-  final def recognize[A](input: String, ambiguityAllowed: Boolean = true)(implicit W: Whitespace): Matcher[Parser[A]] = { p: Parser[A] =>
+  final def recognize[A](input: String, ambiguous: Boolean = true)(implicit W: Whitespace): Matcher[Parser[A]] = { p: Parser[A] =>
     val maybeResults = p(LineStream[Eval](input)).value
 
     maybeResults match {
       case \/-(results) =>
-        (ambiguityAllowed || results.toList.length == 1,    // TODO implement lengthCompare
+        (ambiguous || results.toList.length == 1,    // TODO implement lengthCompare
           s"recognized '$input'",
           s"recognized '$input', but with multiple results: $results")
 

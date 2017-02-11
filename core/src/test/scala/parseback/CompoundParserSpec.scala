@@ -338,6 +338,21 @@ object CompoundParserSpec extends ParsebackSpec {
 
       expr must parseOk("1+")(2)
     }
+
+    "globally disambiguate a local sequence ambiguity" in {
+      implicit val W = Whitespace(() | """\s+""".r)
+
+      lazy val expr: Parser[Any] = (
+          id ~ ":=" ~ expr ~ expr
+        | num
+        | id
+      )
+
+      lazy val id = """[a-zA-Z]""".r
+      lazy val num = """\d+""".r
+
+      expr must recognize("a := 1 c := 2 3", ambiguous = false)
+    }
   }
 
   // commented out until we implement EBNF operators
