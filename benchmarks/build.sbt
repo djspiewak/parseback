@@ -14,11 +14,14 @@
  * limitations under the License.
  */
 
-addSbtPlugin("io.get-coursier" % "sbt-coursier" % "1.0.0-M15-1")
-addSbtPlugin("com.dwijnand" % "sbt-travisci" % "1.0.0")
-addSbtPlugin("com.typesafe.sbt" % "sbt-git" % "0.8.5")
+libraryDependencies ++= Seq(
+  "com.codecommit"         %% "gll-combinators"          % "2.3",
+  "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.5")
 
-addSbtPlugin("me.lessis" % "bintray-sbt" % "0.3.0")
-addSbtPlugin("com.jsuereth" % "sbt-pgp" % "1.0.0")
+enablePlugins(JmhPlugin)
 
-addSbtPlugin("pl.project13.scala" % "sbt-jmh" % "0.2.21")
+publish := ()
+publishLocal := ()
+publishArtifact := false
+
+sourceDirectory in Jmh := (sourceDirectory in Compile).value
