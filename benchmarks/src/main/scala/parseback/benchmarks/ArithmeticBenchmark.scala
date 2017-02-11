@@ -11,7 +11,7 @@ import scala.util.parsing.{combinator => spc}
 @Threads(1)
 class ArithmeticBenchmarks {
 
-  @Param(Array("2", "8", "32", "128", "512", "2048"))
+  @Param(Array("2", "8", "32", "128"/*, "512", "2048"*/))
   var size: Int = _
 
   val parseback = {
