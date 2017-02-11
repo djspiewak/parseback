@@ -116,15 +116,18 @@ sealed trait Parser[+A] {
 
   protected[parseback] final def isNullable: Boolean = {
     import Nullable._
+    import MemoTable.ParserId
     import Parser._
 
-    def inner(p: Parser[_], tracked: Set[Parser[_]]): Nullable = {
-      if ((tracked contains p) || p.nullableMemo != Maybe) {
+    def inner(p: Parser[_], tracked: Set[ParserId[_]]): Nullable = {
+      val pid = new ParserId(p)
+
+      if ((tracked contains pid) || p.nullableMemo != Maybe) {
         p.nullableMemo
       } else {
         p match {
           case p @ Sequence(left, layout, right) =>
-            val tracked2 = tracked + p
+            val tracked2 = tracked + pid
 
             val wsNullable = layout map { inner(_, tracked2) } getOrElse True
 
@@ -132,17 +135,17 @@ sealed trait Parser[+A] {
             p.nullableMemo
 
           case p @ Union(_, _) =>
-            val tracked2 = tracked + p
+            val tracked2 = tracked + pid
 
             p.nullableMemo = inner(p.left, tracked2) || inner(p.right, tracked2)
             p.nullableMemo
 
           case p @ Apply(target, _, _) =>
-            p.nullableMemo = inner(target, tracked + p)
+            p.nullableMemo = inner(target, tracked + pid)
             p.nullableMemo
 
           case p @ Filter(target, _) =>
-            p.nullableMemo = inner(target, tracked + p)
+            p.nullableMemo = inner(target, tracked + pid)
             p.nullableMemo
 
           // the following four cases should never be hit, but they
