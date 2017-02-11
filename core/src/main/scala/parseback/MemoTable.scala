@@ -20,12 +20,14 @@ import java.util.HashMap
 
 // TODO this could be a TON more optimized with some specialized data structures
 // TODO it may be possible to retain SOME results between derivations (just not those which involve Apply)
-private[parseback] final class MemoTable {
+private[parseback] final class MemoTable(derivationsCap: Int, finishesCap: Int) {
   import MemoTable._
 
   // still using the single-derivation optimization here
-  private val derivations: HashMap[ParserId[_], (Char, Parser[_])] = new HashMap
-  private val finishes: HashMap[ParserId[_], Results.Cacheable[_]] = new HashMap
+  private val derivations: HashMap[ParserId[_], (Char, Parser[_])] = new HashMap(derivationsCap)
+  private val finishes: HashMap[ParserId[_], Results.Cacheable[_]] = new HashMap(finishesCap)
+
+  def this() = this(16, 16)    // I guess?
 
   def derived[A](from: Parser[A], c: Char, to: Parser[A]): this.type = {
     derivations.put(new ParserId(from), (c, to))
@@ -50,6 +52,10 @@ private[parseback] final class MemoTable {
 
   def finish[A](target: Parser[A]): Option[Results.Cacheable[A]] =
     Option(finishes.get(new ParserId(target)).asInstanceOf[Results.Cacheable[A]])
+
+  def recreate(): MemoTable = {
+    new MemoTable(derivations.size(), finishes.size())
+  }
 }
 
 private[parseback] object MemoTable {

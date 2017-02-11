@@ -90,19 +90,22 @@ sealed trait Parser[+A] {
   final def apply[F[+_]: Monad](ls: LineStream[F])(implicit W: Whitespace): F[List[ParseError] \/ Catenable[A]] = {
     import LineStream._
 
-    def inner(self: Parser[A])(ls: LineStream[F]): F[List[ParseError] \/ Catenable[A]] = ls match {
-      case More(line, tail) =>
-        trace(s"current line = ${line.project}")
-        val derivation = self.derive(line, new MemoTable)   // create a new memo table with each new character
+    def inner(self: Parser[A], table: MemoTable)(ls: LineStream[F]): F[List[ParseError] \/ Catenable[A]] = {
+      ls match {
+        case More(line, tail) =>
+          trace(s"current line = ${line.project}")
+          val derivation = self.derive(line, table.recreate())
 
-        val ls2: F[LineStream[F]] = line.next map { l =>
-          Monad[F] point More(l, tail)
-        } getOrElse tail
+          val ls2: F[LineStream[F]] = line.next map { l =>
+            Monad[F] point More(l, tail)
+          } getOrElse tail
 
-        Monad[F].flatMap(ls2)(inner(derivation))
+          Monad[F].flatMap(ls2)(inner(derivation, table))
 
-      case Empty() =>
-        Monad[F] point self.finish(Set(), new MemoTable).toEither
+        case Empty() =>
+          // don't clear prior table when we hit the end
+          Monad[F] point self.finish(Set(), table).toEither
+      }
     }
 
     val wrapped = W.layout map { ws =>
@@ -111,7 +114,7 @@ sealed trait Parser[+A] {
       }
     } getOrElse this
 
-    inner(wrapped)(ls)
+    inner(wrapped, new MemoTable)(ls)
   }
 
   protected[parseback] final def isNullable: Boolean = {
