@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+addCommandAlias("measure", "jmh:run -rff results.csv")
+
 libraryDependencies ++= Seq(
   "com.codecommit"         %% "gll-combinators"          % "2.3",
   "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.5")
