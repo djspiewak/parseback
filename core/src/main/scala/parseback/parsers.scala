@@ -23,6 +23,8 @@ import scala.util.matching.{Regex => SRegex}
 import util.Catenable
 import util.EitherSyntax._
 
+import MemoTable.ParserId
+
 sealed trait Parser[+A] {
 
   // this is not volatile since the common case is not crossing thread boundaries
@@ -119,7 +121,6 @@ sealed trait Parser[+A] {
 
   protected[parseback] final def isNullable: Boolean = {
     import Nullable._
-    import MemoTable.ParserId
     import Parser._
 
     def inner(p: Parser[_], tracked: Set[ParserId[_]]): Nullable = {
@@ -243,8 +244,10 @@ sealed trait Parser[+A] {
   // TODO generalize to deriving in bulk, rather than by character
   protected def _derive(line: Line, table: MemoTable): Parser[A]
 
-  protected final def finish(seen: Set[Parser[_]], table: MemoTable): Results[A] = {
-    if (seen contains this) {
+  protected final def finish(seen: Set[ParserId[_]], table: MemoTable): Results[A] = {
+    val id = new ParserId(this)
+
+    if (seen contains id) {
       Results.Hypothetical(ParseError.UnboundedRecursion(this) :: Nil)
     } else {
       val cached = table.finish(this)
@@ -254,7 +257,7 @@ sealed trait Parser[+A] {
       }
 
       val back = cached getOrElse {
-        val back = _finish(seen + this, table)
+        val back = _finish(seen + id, table)
 
         back match {
           case back: Results.Cacheable[A] => table.finished(this, back)
@@ -270,7 +273,7 @@ sealed trait Parser[+A] {
     }
   }
 
-  protected def _finish(seen: Set[Parser[_]], table: MemoTable): Results[A]
+  protected def _finish(seen: Set[ParserId[_]], table: MemoTable): Results[A]
 }
 
 object Parser {
@@ -326,7 +329,7 @@ object Parser {
       }
     }
 
-    protected def _finish(seen: Set[Parser[_]], table: MemoTable) = {
+    protected def _finish(seen: Set[ParserId[_]], table: MemoTable) = {
       val wsFinish =
         layout map { _.finish(seen, table) } getOrElse Results.Success(Catenable(()))
 
@@ -345,7 +348,7 @@ object Parser {
     protected def _derive(line: Line, table: MemoTable): Parser[A] =
       left.derive(line, table) | right.derive(line, table)
 
-    protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
+    protected def _finish(seen: Set[ParserId[_]], table: MemoTable) =
       left.finish(seen, table) || right.finish(seen, table)
   }
 
@@ -361,7 +364,7 @@ object Parser {
     protected def _derive(line: Line, table: MemoTable): Parser[B] =
       Apply(target.derive(line, table), f, Line.addTo(lines, line))
 
-    protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
+    protected def _finish(seen: Set[ParserId[_]], table: MemoTable) =
       target.finish(seen, table) pmap { f(lines.toList, _) }
   }
 
@@ -374,7 +377,7 @@ object Parser {
     protected def _derive(line: Line, table: MemoTable) =
       Filter(target.derive(line, table), p)
 
-    protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
+    protected def _finish(seen: Set[ParserId[_]], table: MemoTable) =
       target.finish(seen, table) pmap { _ filter p }
   }
 
@@ -395,7 +398,7 @@ object Parser {
       }
     }
 
-    protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
+    protected def _finish(seen: Set[ParserId[_]], table: MemoTable) =
       Results.Failure(ParseError.UnexpectedEOF(Set(literal substring offset)) :: Nil)
   }
 
@@ -418,7 +421,7 @@ object Parser {
       success getOrElse Failure(ParseError.UnexpectedCharacter(line, Set(r.toString)) :: Nil)
     }
 
-    protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
+    protected def _finish(seen: Set[ParserId[_]], table: MemoTable) =
       Results.Failure(ParseError.UnexpectedEOF(Set(r.toString)) :: Nil)
   }
 
@@ -430,7 +433,7 @@ object Parser {
     protected def _derive(line: Line, table: MemoTable): Parser[A] =
       Failure(ParseError.UnexpectedTrailingCharacters(line) :: Nil)
 
-    protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
+    protected def _finish(seen: Set[ParserId[_]], table: MemoTable) =
       Results.Success(Catenable(value))
   }
 
@@ -439,7 +442,7 @@ object Parser {
 
     protected def _derive(line: Line, table: MemoTable): Parser[Nothing] = this
 
-    protected def _finish(seen: Set[Parser[_]], table: MemoTable) =
+    protected def _finish(seen: Set[ParserId[_]], table: MemoTable) =
       Results.Failure(errors)
   }
 }
