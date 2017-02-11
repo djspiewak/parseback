@@ -73,6 +73,20 @@ val bintraySettings = Seq(
   }
 )
 
+val mimaSettings = Seq(
+  mimaPreviousArtifacts := {
+    val TagBase = """^(\d+)\.(\d+).*"""r
+    val TagBase(major, minor) = BaseVersion
+
+    val tags = "git tag --list".!! split "\n" map { _.trim }
+
+    val versions =
+      tags filter { _ startsWith s"v$major.$minor" } map { _ substring 1 }
+
+    versions map { v => organization.value %% name.value % v } toSet
+  }
+)
+
 lazy val root = project
   .in(file("."))
   .aggregate(benchmarks, core, render, cats, scalaz72, scalaz71)
@@ -91,7 +105,8 @@ lazy val core = project
   .settings(
     name := "parseback-core",
     coursierSettings,
-    bintraySettings)
+    bintraySettings,
+    mimaSettings)
 
 lazy val cats = project
   .in(file("cats"))
@@ -99,7 +114,8 @@ lazy val cats = project
   .settings(
     name := "parseback-cats",
     coursierSettings,
-    bintraySettings)
+    bintraySettings,
+    mimaSettings)
 
 lazy val scalaz71 = project
   .in(file("scalaz71"))
@@ -107,7 +123,8 @@ lazy val scalaz71 = project
   .settings(
     name := "parseback-scalaz-71",
     coursierSettings,
-    bintraySettings)
+    bintraySettings,
+    mimaSettings)
 
 lazy val scalaz72 = project
   .in(file("scalaz72"))
@@ -115,7 +132,8 @@ lazy val scalaz72 = project
   .settings(
     name := "parseback-scalaz-72",
     coursierSettings,
-    bintraySettings)
+    bintraySettings,
+    mimaSettings)
 
 lazy val render = project
   .in(file("render"))
@@ -123,7 +141,8 @@ lazy val render = project
   .settings(
     name := "parseback-render",
     coursierSettings,
-    bintraySettings)
+    bintraySettings/*,
+    mimaSettings*/)
 
 /***********************************************************************\
                       Boilerplate below these lines
