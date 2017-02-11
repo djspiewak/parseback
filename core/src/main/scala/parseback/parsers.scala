@@ -54,6 +54,29 @@ sealed trait Parser[+A] {
 
   def ^^^[B](b: B): Parser[B] = map { _ => b }
 
+  // ebnf operators
+
+  def ?(): Parser[Option[A]] =
+    Parser.Epsilon(None) | (this map { Some(_) })
+
+  def *(): Parser[List[A]] = {
+    lazy val back: Parser[List[A]] = (
+        this ~ back   ^^ { (_, h, t) => h :: t }
+      | ""           ^^^ Nil
+    )
+
+    back
+  }
+
+  def +(): Parser[List[A]] = {
+    lazy val back: Parser[List[A]] = (
+        this ~ back   ^^ { (_, h, t) => h :: t }
+      | this          ^^ { (_, h) => h :: Nil }
+    )
+
+    back
+  }
+
   /**
    * Among other things, it should be possible to instantiate F[_] with an fs2 Pull,
    * which should allow fully generalizable, incremental parsing on an ephemeral stream.
