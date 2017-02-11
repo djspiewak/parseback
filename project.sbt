@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+addCommandAlias("ci", ";test ;mimaReportBinaryIssues")
+
 organization in ThisBuild := "com.codecommit"
 
 name := "parseback"
