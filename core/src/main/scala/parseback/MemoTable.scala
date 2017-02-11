@@ -16,7 +16,7 @@
 
 package parseback
 
-import scala.collection.mutable
+import java.util.HashMap
 
 // TODO this could be a TON more optimized with some specialized data structures
 // TODO it may be possible to retain SOME results between derivations (just not those which involve Apply)
@@ -24,32 +24,32 @@ private[parseback] final class MemoTable {
   import MemoTable._
 
   // still using the single-derivation optimization here
-  private val derivations: mutable.Map[ParserId[_], (Char, Parser[_])] = mutable.Map()
-  private val finishes: mutable.Map[ParserId[_], Results.Cacheable[_]] = mutable.Map()
+  private val derivations: HashMap[ParserId[_], (Char, Parser[_])] = new HashMap
+  private val finishes: HashMap[ParserId[_], Results.Cacheable[_]] = new HashMap
 
   def derived[A](from: Parser[A], c: Char, to: Parser[A]): this.type = {
-    derivations(new ParserId(from)) = (c, to)
+    derivations.put(new ParserId(from), (c, to))
 
     this
   }
 
   def derive[A](from: Parser[A], c: Char): Option[Parser[A]] = {
-    val id = new ParserId(from)
+    val back = derivations.get(new ParserId(from))
 
-    derivations get id filter { _._1 == c } map { _._2.asInstanceOf[Parser[A]] }
+    if (back != null && back._1 == c)
+      Some(back._2.asInstanceOf[Parser[A]])
+    else
+      None
   }
 
   def finished[A](target: Parser[A], results: Results.Cacheable[A]): this.type = {
-    finishes(new ParserId(target)) = results
+    finishes.put(new ParserId(target), results)
 
     this
   }
 
-  def finish[A](target: Parser[A]): Option[Results.Cacheable[A]] = {
-    val id = new ParserId(target)
-
-    finishes get id map { _.asInstanceOf[Results.Cacheable[A]] }
-  }
+  def finish[A](target: Parser[A]): Option[Results.Cacheable[A]] =
+    Option(finishes.get(new ParserId(target)).asInstanceOf[Results.Cacheable[A]])
 }
 
 private[parseback] object MemoTable {
