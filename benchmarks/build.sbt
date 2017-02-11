@@ -15,8 +15,8 @@
  */
 
 addCommandAlias("measure-all", "jmh:run -rff results.csv")
-addCommandAlias("measure", "jmh:run -rff results.csv .*parseback.*")
-addCommandAlias("profile", "jmh:run -prof jmh.extras.JFR -f 1 .*parseback.*")
+addCommandAlias("measure", "jmh:run -rff results.csv .*parsebackRun")
+addCommandAlias("profile", "jmh:run -prof jmh.extras.JFR -f 1 .*parsebackRun")
 
 libraryDependencies ++= Seq(
   "com.codecommit"         %% "gll-combinators"          % "2.3",
