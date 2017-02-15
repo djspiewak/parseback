@@ -2,7 +2,7 @@
 
 Nope.
 
-All charts plotted on a log-10 (vertical) scale, while all tests are done on a log-2 scale (horizontal).  I know, I know…  Vertical axis is time in milliseconds, while the horizontal axis varies over input size.
+All charts plotted on a log-10 (vertical) scale, while all tests are done on a log-2 scale (horizontal).  I know, I know…  Vertical axis is time in milliseconds, while the horizontal axis varies over input size.  Lower is better.
 
 ## Arithmetic Expression
 
