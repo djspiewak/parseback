@@ -28,7 +28,7 @@ private[parseback] sealed abstract class MemoTable {
   def finished[A](target: Parser[A], results: Results.Cacheable[A]): this.type
   def finish[A](target: Parser[A]): Option[Results.Cacheable[A]]
 
-  final def recreate(): MemoTable = new FieldMemoTable
+  def recreate(): MemoTable
 }
 
 private[parseback] object MemoTable {
@@ -74,36 +74,56 @@ private[parseback] final class InitialMemoTable extends MemoTable {
 
   def finish[A](target: Parser[A]): Option[Results.Cacheable[A]] =
     Option(finishes.get(new ParserId(target)).asInstanceOf[Results.Cacheable[A]])
+
+  def recreate(): MemoTable = new FieldMemoTable(this)
 }
 
-private[parseback] final class FieldMemoTable extends MemoTable {
+private[parseback] final class FieldMemoTable(delegate: InitialMemoTable) extends MemoTable {
 
   def derived[A](from: Parser[A], c: Char, to: Parser[A]): this.type = {
-    from.table = this
-    from.derivedC = c
-    from.derivedR = to
+    if (from.isRoot) {
+      delegate.derived(from, c, to)
+    } else {
+      from.derivedTable = this
+      from.derivedC = c
+      from.derivedR = to
+    }
 
     this
   }
 
   def derive[A](from: Parser[A], c: Char): Option[Parser[A]] = {
-    if ((from.table eq this) && from.derivedC == c)
-      Option(from.derivedR)
-    else
-      None
+    if (from.isRoot) {
+      delegate.derive(from, c)
+    } else {
+      if ((from.derivedTable eq this) && from.derivedC == c)
+        Option(from.derivedR)
+      else
+        None
+    }
   }
 
   def finished[A](target: Parser[A], results: Results.Cacheable[A]): this.type = {
-    target.table = this
-    target.finished = results
+    if (target.isRoot) {
+      delegate.finished(target, results)
+    } else {
+      target.finishedTable = this
+      target.finished = results
+    }
 
     this
   }
 
   def finish[A](target: Parser[A]): Option[Results.Cacheable[A]] = {
-    if (target.table eq this)
-      Option(target.finished)
-    else
-      None
+    if (target.isRoot) {
+      delegate.finish(target)
+    } else {
+      if (target.finishedTable eq this)
+        Option(target.finished)
+      else
+        None
+    }
   }
+
+  def recreate(): MemoTable = new FieldMemoTable(delegate)
 }

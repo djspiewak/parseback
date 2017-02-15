@@ -45,6 +45,15 @@ object RegexSpec extends ParsebackSpec {
       expr must parseOk("1 + 2")(3)
     }
 
+    /*
+     * note to self: the following test checks something important,
+     * which is that a root parser (whitespace, in this case) can
+     * be used at different points in the stream that are
+     * coincidentally character-equal.  specifically, index 1 and
+     * index 5 are character-equal, but require different derivations
+     * from the """\s+""".r parser (the first to Literal(" "), the
+     * second to Literal("   "))
+     */
     "handle a simple arithmetic grammar with trailing whitespace" in {
       implicit val W = Whitespace(() | """\s+""".r)
 

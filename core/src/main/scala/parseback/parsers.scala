@@ -36,11 +36,14 @@ sealed trait Parser[+A] {
   // the following fields are used by FieldMemoTable to avoid hashmap usage
   // they should NEVER be accessed directly; only through the MemoTable abstraction
 
-  private[parseback] var table: FieldMemoTable = _
+  // true if this is a shared parser (and thus not thread-local)
+  private[parseback] var isRoot: Boolean = false
 
+  private[parseback] var derivedTable: FieldMemoTable = _
   private[parseback] var derivedC: Char = _
   private[parseback] var derivedR: Parser[A @uncheckedVariance] = _
 
+  private[parseback] var finishedTable: FieldMemoTable = _
   private[parseback] var finished: Results.Cacheable[A @uncheckedVariance] = _
 
   def map[B](f: A => B): Parser[B] =
@@ -104,6 +107,39 @@ sealed trait Parser[+A] {
   final def apply[F[+_]: Monad](ls: LineStream[F])(implicit W: Whitespace): F[List[ParseError] \/ Catenable[A]] = {
     import LineStream._
 
+    def markRoots(self: Parser[_], tracked: Set[ParserId[_]]): Set[ParserId[_]] = {
+      import Parser._
+
+      val id = new ParserId(self)
+
+      if (self.isRoot || (tracked contains id)) {
+        tracked
+      } else {
+        val tracked2 = tracked + id
+
+        self.isRoot = true
+
+        self match {
+          case Sequence(left, layout, right) =>
+            val tracked3 = markRoots(left, tracked2)
+            val tracked4 = layout map { markRoots(_, tracked3) } getOrElse tracked3
+
+            markRoots(right, tracked4)
+
+          case self @ Union(_, _) =>
+            markRoots(self.right, markRoots(self.left, tracked2))
+
+          case Apply(target, _, _) =>
+            markRoots(target, tracked2)
+
+          case Filter(target, _) =>
+            markRoots(target, tracked2)
+
+          case _ => tracked
+        }
+      }
+    }
+
     def inner(self: Parser[A], table: MemoTable)(ls: LineStream[F]): F[List[ParseError] \/ Catenable[A]] = {
       ls match {
         case More(line, tail) =>
@@ -127,6 +163,8 @@ sealed trait Parser[+A] {
         case ((_, v), _) => v   // we don't care about whitespace results
       }
     } getOrElse this
+
+    markRoots(wrapped, Set.empty)
 
     inner(wrapped, new InitialMemoTable)(ls)
   }
