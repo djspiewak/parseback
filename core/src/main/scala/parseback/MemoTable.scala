@@ -48,17 +48,23 @@ private[parseback] final class InitialMemoTable extends MemoTable {
   import MemoTable._
 
   // still using the single-derivation optimization here
-  private val derivations: HashMap[ParserId[_], (Char, Parser[_])] = new HashMap(16)    // TODO tune capacities
-  private val finishes: HashMap[ParserId[_], Results.Cacheable[_]] = new HashMap(16)
+  private val derivations: HashMap[(MemoTable, ParserId[_]), (Char, Parser[_])] = new HashMap(16)    // TODO tune capacities
+  private val finishes: HashMap[(MemoTable, ParserId[_]), Results.Cacheable[_]] = new HashMap(16)
 
-  def derived[A](from: Parser[A], c: Char, to: Parser[A]): this.type = {
-    derivations.put(new ParserId(from), (c, to))
+  def derived[A](from: Parser[A], c: Char, to: Parser[A]): this.type =
+    derived(this, from, c, to)
+
+  private[parseback] def derived[A](table: MemoTable, from: Parser[A], c: Char, to: Parser[A]): this.type = {
+    derivations.put((table, new ParserId(from)), (c, to))
 
     this
   }
 
-  def derive[A](from: Parser[A], c: Char): Option[Parser[A]] = {
-    val back = derivations.get(new ParserId(from))
+  def derive[A](from: Parser[A], c: Char): Option[Parser[A]] =
+    derive(this, from, c)
+
+  private[parseback] def derive[A](table: MemoTable, from: Parser[A], c: Char): Option[Parser[A]] = {
+    val back = derivations.get((table, new ParserId(from)))
 
     if (back != null && back._1 == c)
       Some(back._2.asInstanceOf[Parser[A]])
@@ -66,14 +72,20 @@ private[parseback] final class InitialMemoTable extends MemoTable {
       None
   }
 
-  def finished[A](target: Parser[A], results: Results.Cacheable[A]): this.type = {
-    finishes.put(new ParserId(target), results)
+  def finished[A](target: Parser[A], results: Results.Cacheable[A]): this.type =
+    finished(this, target, results)
+
+  private[parseback] def finished[A](table: MemoTable, target: Parser[A], results: Results.Cacheable[A]): this.type = {
+    finishes.put((table, new ParserId(target)), results)
 
     this
   }
 
   def finish[A](target: Parser[A]): Option[Results.Cacheable[A]] =
-    Option(finishes.get(new ParserId(target)).asInstanceOf[Results.Cacheable[A]])
+    finish(this, target)
+
+  private[parseback] def finish[A](table: MemoTable, target: Parser[A]): Option[Results.Cacheable[A]] =
+    Option(finishes.get((table, new ParserId(target))).asInstanceOf[Results.Cacheable[A]])
 
   def recreate(): MemoTable = new FieldMemoTable(this)
 }
@@ -82,7 +94,7 @@ private[parseback] final class FieldMemoTable(delegate: InitialMemoTable) extend
 
   def derived[A](from: Parser[A], c: Char, to: Parser[A]): this.type = {
     if (from.isRoot) {
-      delegate.derived(from, c, to)
+      delegate.derived(this, from, c, to)
     } else {
       from.derivedTable = this
       from.derivedC = c
@@ -94,7 +106,7 @@ private[parseback] final class FieldMemoTable(delegate: InitialMemoTable) extend
 
   def derive[A](from: Parser[A], c: Char): Option[Parser[A]] = {
     if (from.isRoot) {
-      delegate.derive(from, c)
+      delegate.derive(this, from, c)
     } else {
       if ((from.derivedTable eq this) && from.derivedC == c)
         Option(from.derivedR)
@@ -105,7 +117,7 @@ private[parseback] final class FieldMemoTable(delegate: InitialMemoTable) extend
 
   def finished[A](target: Parser[A], results: Results.Cacheable[A]): this.type = {
     if (target.isRoot) {
-      delegate.finished(target, results)
+      delegate.finished(this, target, results)
     } else {
       target.finishedTable = this
       target.finished = results
@@ -116,7 +128,7 @@ private[parseback] final class FieldMemoTable(delegate: InitialMemoTable) extend
 
   def finish[A](target: Parser[A]): Option[Results.Cacheable[A]] = {
     if (target.isRoot) {
-      delegate.finish(target)
+      delegate.finish(this, target)
     } else {
       if (target.finishedTable eq this)
         Option(target.finished)
