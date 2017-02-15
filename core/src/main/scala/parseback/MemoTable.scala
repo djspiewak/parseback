@@ -18,16 +18,38 @@ package parseback
 
 import java.util.HashMap
 
-// TODO this could be a TON more optimized with some specialized data structures
+// note that there are only two implementation here, preserving bimorphic PIC
 // TODO it may be possible to retain SOME results between derivations (just not those which involve Apply)
-private[parseback] final class MemoTable(derivationsCap: Int, finishesCap: Int) {
+private[parseback] sealed abstract class MemoTable {
+
+  def derived[A](from: Parser[A], c: Char, to: Parser[A]): this.type
+  def derive[A](from: Parser[A], c: Char): Option[Parser[A]]
+
+  def finished[A](target: Parser[A], results: Results.Cacheable[A]): this.type
+  def finish[A](target: Parser[A]): Option[Results.Cacheable[A]]
+
+  final def recreate(): MemoTable = new FieldMemoTable
+}
+
+private[parseback] object MemoTable {
+
+  final class ParserId[A](val self: Parser[A]) {
+
+    override def equals(that: Any) = that match {
+      case that: ParserId[_] => this.self eq that.self
+      case _ => false
+    }
+
+    override def hashCode = System.identityHashCode(self)
+  }
+}
+
+private[parseback] final class InitialMemoTable extends MemoTable {
   import MemoTable._
 
   // still using the single-derivation optimization here
-  private val derivations: HashMap[ParserId[_], (Char, Parser[_])] = new HashMap(derivationsCap)
-  private val finishes: HashMap[ParserId[_], Results.Cacheable[_]] = new HashMap(finishesCap)
-
-  def this() = this(16, 16)    // I guess?
+  private val derivations: HashMap[ParserId[_], (Char, Parser[_])] = new HashMap(16)    // TODO tune capacities
+  private val finishes: HashMap[ParserId[_], Results.Cacheable[_]] = new HashMap(16)
 
   def derived[A](from: Parser[A], c: Char, to: Parser[A]): this.type = {
     derivations.put(new ParserId(from), (c, to))
@@ -52,21 +74,36 @@ private[parseback] final class MemoTable(derivationsCap: Int, finishesCap: Int) 
 
   def finish[A](target: Parser[A]): Option[Results.Cacheable[A]] =
     Option(finishes.get(new ParserId(target)).asInstanceOf[Results.Cacheable[A]])
-
-  def recreate(): MemoTable = {
-    new MemoTable(derivations.size(), finishes.size())
-  }
 }
 
-private[parseback] object MemoTable {
+private[parseback] final class FieldMemoTable extends MemoTable {
 
-  final class ParserId[A](val self: Parser[A]) {
+  def derived[A](from: Parser[A], c: Char, to: Parser[A]): this.type = {
+    from.table = this
+    from.derivedC = c
+    from.derivedR = to
 
-    override def equals(that: Any) = that match {
-      case that: ParserId[_] => this.self eq that.self
-      case _ => false
-    }
+    this
+  }
 
-    override def hashCode = System.identityHashCode(self)
+  def derive[A](from: Parser[A], c: Char): Option[Parser[A]] = {
+    if ((from.table eq this) && from.derivedC == c)
+      Option(from.derivedR)
+    else
+      None
+  }
+
+  def finished[A](target: Parser[A], results: Results.Cacheable[A]): this.type = {
+    target.table = this
+    target.finished = results
+
+    this
+  }
+
+  def finish[A](target: Parser[A]): Option[Results.Cacheable[A]] = {
+    if (target.table eq this)
+      Option(target.finished)
+    else
+      None
   }
 }

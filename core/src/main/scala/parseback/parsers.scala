@@ -23,13 +23,25 @@ import scala.util.matching.{Regex => SRegex}
 import util.Catenable
 import util.EitherSyntax._
 
+import scala.annotation.unchecked.uncheckedVariance
+
 import MemoTable.ParserId
 
 sealed trait Parser[+A] {
 
-  // this is not volatile since the common case is not crossing thread boundaries
+  // these are not volatile since the common case is not crossing thread boundaries
   // the consequence of a thread-local cache miss is simply recomputation
   protected var nullableMemo: Nullable = Nullable.Maybe
+
+  // the following fields are used by FieldMemoTable to avoid hashmap usage
+  // they should NEVER be accessed directly; only through the MemoTable abstraction
+
+  private[parseback] var table: FieldMemoTable = _
+
+  private[parseback] var derivedC: Char = _
+  private[parseback] var derivedR: Parser[A @uncheckedVariance] = _
+
+  private[parseback] var finished: Results.Cacheable[A @uncheckedVariance] = _
 
   def map[B](f: A => B): Parser[B] =
     Parser.Apply(this, { (_, as: Catenable[A]) => as map f })
@@ -116,7 +128,7 @@ sealed trait Parser[+A] {
       }
     } getOrElse this
 
-    inner(wrapped, new MemoTable)(ls)
+    inner(wrapped, new InitialMemoTable)(ls)
   }
 
   protected[parseback] final def isNullable: Boolean = {
