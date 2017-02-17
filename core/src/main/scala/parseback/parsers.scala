@@ -299,13 +299,7 @@ sealed trait Parser[+A] {
     if (this.isInstanceOf[Parser.Union[_]] && (seen contains id)) {
       Results.Hypothetical(ParseError.UnboundedRecursion(this) :: Nil)
     } else {
-      val cached = table.finish(this)
-
-      cached foreach { back =>
-        trace(s"finished from cache $this => $back")
-      }
-
-      val back = cached getOrElse {
+      table finish this getOrElse {
         val seen2 = this match {
           case Parser.Union(_, _) => seen + id
           case _ => seen
@@ -322,8 +316,6 @@ sealed trait Parser[+A] {
 
         back
       }
-
-      back
     }
   }
 
