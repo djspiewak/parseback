@@ -305,7 +305,12 @@ sealed trait Parser[+A] {
       }
 
       val back = cached getOrElse {
-        val back = _finish(seen + id, table)
+        val seen2 = this match {
+          case Parser.Union(_, _) => seen + id
+          case _ => seen
+        }
+
+        val back = _finish(seen2, table)
 
         back match {
           case back: Results.Cacheable[A] => table.finished(this, back)
