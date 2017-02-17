@@ -447,6 +447,8 @@ object Parser {
 
         apply(target.target, composed, target.lines.foldLeft(lines)(Line.addTo))
 
+      case target @ Failure(_) => target
+
       case target => Apply(target, f, lines)
     }
   }
