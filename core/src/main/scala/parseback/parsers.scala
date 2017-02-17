@@ -58,10 +58,10 @@ sealed trait Parser[+A] {
 
   // TODO come up with a better name
   final def ~!~[B](that: Parser[B]): Parser[A ~ B] =
-    Parser.Sequence(this, None, that)
+    Parser.sequence(this, None, that)
 
   final def ~[B](that: Parser[B])(implicit W: Whitespace): Parser[A ~ B] =
-    Parser.Sequence(this, W.layout, that)
+    Parser.sequence(this, W.layout, that)
 
   final def ~>[B](that: Parser[B])(implicit W: Whitespace): Parser[B] =
     (this ~ that) map { case _ ~ b => b }
@@ -343,7 +343,7 @@ object Parser {
     protected def _derive(line: Line, table: MemoTable): Parser[A ~ B] = {
       trace(s">> deriving $this")
 
-      lazy val nonNulled = Sequence(left.derive(line, table), layout, right)
+      lazy val nonNulled = sequence(left.derive(line, table), layout, right)
 
       if (left.isNullable) {
         trace(s"  >> left is nullable")
@@ -360,7 +360,7 @@ object Parser {
             // have whitespace be the new left, interleaved with no
             // new whitespace
             lazy val rhs = layout map { ws =>
-              Sequence(ws, None, right) map {
+              sequence(ws, None, right) map {
                 case (_, r) => r
               }
             } getOrElse right
@@ -385,6 +385,17 @@ object Parser {
 
       leftFinish && right.finish(seen, table)
     }
+  }
+
+  def sequence[A, B](left: Parser[A], layout: Option[Parser[_]], right: Parser[B]): Parser[A ~ B] = left match {
+    case Epsilon(value) =>
+      layout map { ws =>
+        sequence(ws, None, right) map { case (_, b) => (value, b) }
+      } getOrElse (right map { (value, _) })
+
+    case f @ Failure(_) => f
+
+    case _ => Sequence(left, layout, right)
   }
 
   final case class Union[+A](_left: () => Parser[A], _right: () => Parser[A]) extends Parser[A] {
