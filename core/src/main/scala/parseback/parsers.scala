@@ -387,15 +387,21 @@ object Parser {
     }
   }
 
-  def sequence[A, B](left: Parser[A], layout: Option[Parser[_]], right: Parser[B]): Parser[A ~ B] = left match {
-    case Epsilon(value) =>
-      layout map { ws =>
-        sequence(ws, None, right) map { case (_, b) => (value, b) }
-      } getOrElse (right map { (value, _) })
+  private[parseback] def sequence[A, B](
+      left: Parser[A],
+      layout: Option[Parser[_]],
+      right: Parser[B]): Parser[A ~ B] = {
 
-    case f @ Failure(_) => f
+    left match {
+      case Epsilon(value) =>
+        layout map { ws =>
+          sequence(ws, None, right) map { case (_, b) => (value, b) }
+        } getOrElse (right map { (value, _) })
 
-    case _ => Sequence(left, layout, right)
+      case f @ Failure(_) => f
+
+      case _ => Sequence(left, layout, right)
+    }
   }
 
   final case class Union[+A](_left: () => Parser[A], _right: () => Parser[A]) extends Parser[A] {
@@ -423,6 +429,26 @@ object Parser {
 
     protected def _finish(seen: Set[ParserId[_]], table: MemoTable) =
       target.finish(seen, table) pmap { f(lines.toList, _) }
+  }
+
+  private[parseback] def apply[A, B](
+      target: Parser[A],
+      f: (List[Line], Catenable[A]) => Catenable[B],
+      lines: Vector[Line] = Vector.empty): Parser[B] = {
+
+    target match {
+      // TODO we could reenable this rule if Epsilon contained a Catenable
+      // case Epsilon(value) => Epsilon(f(lines.toList, Catenable(value)))
+
+      case target: Apply[e, A] =>
+        val composed: (List[Line], Catenable[e]) => Catenable[B] = { (lines, es) =>
+          f(lines, target.f(lines, es))
+        }
+
+        apply(target.target, composed, target.lines.foldLeft(lines)(Line.addTo))
+
+      case target => Apply(target, f, lines)
+    }
   }
 
   final case class Filter[A](target: Parser[A], p: A => Boolean) extends Parser[A] {
