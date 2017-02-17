@@ -322,6 +322,9 @@ sealed trait Parser[+A] {
   protected def _finish(seen: Set[ParserId[_]], table: MemoTable): Results[A]
 }
 
+/*
+ * Smart constructors are provided for Sequence and Apply
+ */
 object Parser {
 
   implicit val applicative: Applicative[Parser] = new Applicative[Parser] {
