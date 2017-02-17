@@ -181,11 +181,9 @@ sealed trait Parser[+A] {
       } else {
         p match {
           case p @ Sequence(left, layout, right) =>
-            val tracked2 = tracked + pid
+            val wsNullable = layout map { inner(_, tracked) } getOrElse True
 
-            val wsNullable = layout map { inner(_, tracked2) } getOrElse True
-
-            p.nullableMemo = inner(left, tracked2) && wsNullable && inner(right, tracked2)
+            p.nullableMemo = inner(left, tracked) && wsNullable && inner(right, tracked)
             p.nullableMemo
 
           case p @ Union(_, _) =>
@@ -195,11 +193,11 @@ sealed trait Parser[+A] {
             p.nullableMemo
 
           case p @ Apply(target, _, _) =>
-            p.nullableMemo = inner(target, tracked + pid)
+            p.nullableMemo = inner(target, tracked)
             p.nullableMemo
 
           case p @ Filter(target, _) =>
-            p.nullableMemo = inner(target, tracked + pid)
+            p.nullableMemo = inner(target, tracked)
             p.nullableMemo
 
           // the following four cases should never be hit, but they
