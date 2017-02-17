@@ -176,7 +176,7 @@ sealed trait Parser[+A] {
     def inner(p: Parser[_], tracked: Set[ParserId[_]]): Nullable = {
       val pid = new ParserId(p)
 
-      if ((tracked contains pid) || p.nullableMemo != Maybe) {
+      if ((p.isInstanceOf[Union[_]] && (tracked contains pid)) || p.nullableMemo != Maybe) {
         p.nullableMemo
       } else {
         p match {
@@ -295,7 +295,8 @@ sealed trait Parser[+A] {
   protected final def finish(seen: Set[ParserId[_]], table: MemoTable): Results[A] = {
     val id = new ParserId(this)
 
-    if (seen contains id) {
+    // non-union parsers aren't marked, so we can fast-fail them
+    if (this.isInstanceOf[Parser.Union[_]] && (seen contains id)) {
       Results.Hypothetical(ParseError.UnboundedRecursion(this) :: Nil)
     } else {
       val cached = table.finish(this)
