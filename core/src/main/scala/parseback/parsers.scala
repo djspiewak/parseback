@@ -47,10 +47,10 @@ sealed trait Parser[+A] {
   private[parseback] var finished: Results.Cacheable[A @uncheckedVariance] = _
 
   def map[B](f: A => B): Parser[B] =
-    Parser.Apply(this, { (_, as: Catenable[A]) => as map f })
+    Parser.apply(this, { (_, a: A) => Catenable(f(a)) })
 
   def mapWithLines[B](f: (List[Line], A) => B): Parser[B] =
-    Parser.Apply(this, { (line, as: Catenable[A]) => as map { f(line, _) } })
+    Parser.apply(this, { (line, a: A) => Catenable(f(line, a)) })
 
   final def map2[B, C](that: Parser[B])(f: (A, B) => C): Parser[C] = (this ~ that) map f.tupled
 
@@ -365,8 +365,8 @@ object Parser {
               }
             } getOrElse right
 
-            nonNulled | Apply(rhs.derive(line, table), { (_, bs: Catenable[B]) =>
-              bs flatMap { b => results map { (_, b) } }
+            nonNulled | Parser.apply(rhs.derive(line, table), { (_, b: B) =>
+              results map { (_, b) }
             })
         }
       } else {
@@ -393,6 +393,20 @@ object Parser {
       right: Parser[B]): Parser[A ~ B] = {
 
     left match {
+      case Sequence(innerLeft, innerLayout, innerRight) =>
+        sequence(innerLeft, innerLayout, sequence(innerRight, layout, right)) map {
+          case (a, (b, c)) => ((a, b), c)
+        }
+
+      case left: Apply[e, A] =>
+        val f: (List[Line], (e, B)) => Catenable[(A, B)] = { (lines, pair) =>
+          val (e, b) = pair
+
+          left.f(lines, e) map { (_, b) }
+        }
+
+        apply(sequence(left.target, layout, right), f, left.lines)
+
       case Epsilon(value) =>
         layout map { ws =>
           sequence(ws, None, right) map { case (_, b) => (value, b) }
@@ -415,25 +429,19 @@ object Parser {
       left.finish(seen, table) || right.finish(seen, table)
   }
 
-  final case class Apply[A, +B](target: Parser[A], f: (List[Line], Catenable[A]) => Catenable[B], lines: Vector[Line] = Vector.empty) extends Parser[B] {
+  final case class Apply[A, +B](target: Parser[A], f: (List[Line], A) => Catenable[B], lines: Vector[Line] = Vector.empty) extends Parser[B] {
     nullableMemo = target.nullableMemo
 
-    override def map[C](f2: B => C): Parser[C] =
-      Apply(target, { (lines, as: Catenable[A]) => f(lines, as) map f2 }, lines)
-
-    override def mapWithLines[C](f2: (List[Line], B) => C): Parser[C] =
-      Apply(target, { (lines, a: Catenable[A]) => f(lines, a) map { f2(lines, _) } }, lines)
-
     protected def _derive(line: Line, table: MemoTable): Parser[B] =
-      Apply(target.derive(line, table), f, Line.addTo(lines, line))
+      Parser.apply(target.derive(line, table), f, Line.addTo(lines, line))
 
     protected def _finish(seen: Set[ParserId[_]], table: MemoTable) =
-      target.finish(seen, table) pmap { f(lines.toList, _) }
+      target.finish(seen, table) pmap { as => as flatMap { f(lines.toList, _) } }
   }
 
   private[parseback] def apply[A, B](
       target: Parser[A],
-      f: (List[Line], Catenable[A]) => Catenable[B],
+      f: (List[Line], A) => Catenable[B],
       lines: Vector[Line] = Vector.empty): Parser[B] = {
 
     target match {
@@ -441,8 +449,8 @@ object Parser {
       // case Epsilon(value) => Epsilon(f(lines.toList, Catenable(value)))
 
       case target: Apply[e, A] =>
-        val composed: (List[Line], Catenable[e]) => Catenable[B] = { (lines, es) =>
-          f(lines, target.f(lines, es))
+        val composed: (List[Line], e) => Catenable[B] = { (lines, e) =>
+          target.f(lines, e) flatMap { f(lines, _) }
         }
 
         apply(target.target, composed, target.lines.foldLeft(lines)(Line.addTo))
