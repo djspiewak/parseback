@@ -88,8 +88,12 @@ val mimaSettings = Seq(
     versions map { v => organization.value %% name.value % v } toSet
   },
 
-  resolvers in mimaFindBinaryIssues +=
-    "bintray-djspiewak-maven" at "https://dl.bintray.com/djspiewak/maven"
+  resolvers ++= {
+    if (isTravisBuild.value)
+      Seq("bintray-djspiewak-maven" at "https://dl.bintray.com/djspiewak/maven")
+    else
+      Seq()
+  }
 )
 
 lazy val root = project
