@@ -346,7 +346,7 @@ object Parser {
     protected def _derive(line: Line, table: MemoTable): Parser[A ~ B] = {
       trace(s">> deriving $this")
 
-      lazy val nonNulled = sequence(left.derive(line, table), layout, right)
+      val nonNulled = sequence(left.derive(line, table), layout, right)
 
       if (left.isNullable) {
         trace(s"  >> left is nullable")
@@ -362,15 +362,17 @@ object Parser {
             // iff we have interleaving whitespace, rewrite self to
             // have whitespace be the new left, interleaved with no
             // new whitespace
-            lazy val rhs = layout map { ws =>
+            val rhs = layout map { ws =>
               sequence(ws, None, right) map {
                 case (_, r) => r
               }
             } getOrElse right
 
-            nonNulled | Parser.apply(rhs.derive(line, table), { (_, b: B) =>
+            val nulled = Parser.apply(rhs.derive(line, table), { (_, b: B) =>
               results map { (_, b) }
             })
+
+            nonNulled | nulled
         }
       } else {
         trace(s"  >> left is not nullable")
