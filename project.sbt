@@ -86,7 +86,10 @@ val mimaSettings = Seq(
       tags filter { _ startsWith s"v$major.$minor" } map { _ substring 1 }
 
     versions map { v => organization.value %% name.value % v } toSet
-  }
+  },
+
+  resolvers in mimaFindBinaryIssues +=
+    "bintray-djspiewak-maven" at "https://dl.bintray.com/djspiewak/maven"
 )
 
 lazy val root = project
