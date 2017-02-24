@@ -98,26 +98,49 @@ val mimaSettings = Seq(
 
 lazy val root = project
   .in(file("."))
-  .aggregate(benchmarks, core, render, cats, scalaz72, scalaz71)
+  .aggregate(
+    benchmarks, coreJVM, coreJS, renderJVM, renderJS,
+    catsJVM, catsJS, scalaz72JVM, scalaz72JS, scalaz71)
   .settings(coursierSettings, bintraySettings)
 
 lazy val benchmarks = project
   .in(file("benchmarks"))
-  .dependsOn(core, cats)
+  .dependsOn(coreJVM, catsJVM)
   .settings(
     name := "parseback-benchmarks",
     coursierSettings,
     bintraySettings)
 
-lazy val core = project
+lazy val core = crossProject
+  .crossType(CrossType.Pure)
   .in(file("core"))
   .settings(
     name := "parseback-core",
     coursierSettings,
     bintraySettings,
     mimaSettings)
+  .settings(
+    libraryDependencies += "com.codecommit" %%% "shims-core" % Versions.Shims,
+    libraryDependencies ++= Seq(
+      "com.codecommit" %% "shims-cats"        % Versions.Shims % Test,
+      "org.scalacheck" %% "scalacheck"        % "1.13.4"       % Test,
+      "org.specs2"     %% "specs2-core"       % Versions.Specs % Test,
+      "org.specs2"     %% "specs2-scalacheck" % Versions.Specs % Test
+    ),
+    initialCommands := "import parseback._",
+    scalacOptions in Test += "-Yrangepos",
+    logBuffered in Test := false,
+    scalacOptions in (Compile, console) ~= (_ filterNot (Set(
+      "-Xfatal-warnings",
+      "-Ywarn-unused-import").contains)),
+    scalacOptions in (Test, console) := (scalacOptions in (Compile, console)).value
+  )
 
-lazy val cats = project
+lazy val coreJS = core.js
+lazy val coreJVM = core.jvm
+
+lazy val cats = crossProject
+  .crossType(CrossType.Pure)
   .in(file("cats"))
   .dependsOn(core)
   .settings(
@@ -125,17 +148,24 @@ lazy val cats = project
     coursierSettings,
     bintraySettings,
     mimaSettings)
+  .settings(
+    libraryDependencies += "com.codecommit" %%% "shims-cats" % Versions.Shims)
+lazy val catsJS = cats.js
+lazy val catsJVM = cats.jvm
 
 lazy val scalaz71 = project
   .in(file("scalaz71"))
-  .dependsOn(core)
+  .dependsOn(coreJVM)
   .settings(
     name := "parseback-scalaz-71",
     coursierSettings,
     bintraySettings,
     mimaSettings)
+  .settings(
+    libraryDependencies += "com.codecommit" %% "shims-scalaz-71" % Versions.Shims)
 
-lazy val scalaz72 = project
+lazy val scalaz72 = crossProject
+  .crossType(CrossType.Pure)
   .in(file("scalaz72"))
   .dependsOn(core)
   .settings(
@@ -143,8 +173,13 @@ lazy val scalaz72 = project
     coursierSettings,
     bintraySettings,
     mimaSettings)
+  .settings(
+    libraryDependencies += "com.codecommit" %%% "shims-scalaz-72" % Versions.Shims)
+lazy val scalaz72JS = scalaz72.js
+lazy val scalaz72JVM = scalaz72.jvm
 
-lazy val render = project
+lazy val render = crossProject
+  .crossType(CrossType.Pure)
   .in(file("render"))
   .dependsOn(cats)
   .settings(
@@ -152,6 +187,8 @@ lazy val render = project
     coursierSettings,
     bintraySettings/*,
     mimaSettings*/)
+lazy val renderJS = render.js
+lazy val renderJVM = render.jvm
 
 /***********************************************************************\
                       Boilerplate below these lines
