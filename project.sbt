@@ -96,6 +96,10 @@ val mimaSettings = Seq(
   }
 )
 
+addCommandAlias("measure-all", "benchmarks/jmh:run -rff results.csv")
+addCommandAlias("measure", "benchmarks/jmh:run -rff results.csv .*parsebackRun")
+addCommandAlias("profile", "benchmarks/jmh:run -prof jmh.extras.JFR -f 1 .*parsebackRun")
+
 lazy val root = project
   .in(file("."))
   .aggregate(
@@ -110,6 +114,17 @@ lazy val benchmarks = project
     name := "parseback-benchmarks",
     coursierSettings,
     bintraySettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.codecommit"         %% "gll-combinators"          % "2.3",
+      "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.5"),
+
+    publish := (),
+    publishLocal := (),
+    publishArtifact := false,
+
+    sourceDirectory in Jmh := (sourceDirectory in Compile).value)
+  .enablePlugins(JmhPlugin)
 
 lazy val core = crossProject
   .crossType(CrossType.Pure)
