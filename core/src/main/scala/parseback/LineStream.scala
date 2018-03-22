@@ -16,7 +16,7 @@
 
 package parseback
 
-import shims.{Applicative, Monad}
+import cats.{Applicative, Monad}
 
 // a head-tail stream of [[Line]]s, with the tail computed in effect F[_]
 sealed trait LineStream[F[+_]] extends Product with Serializable {

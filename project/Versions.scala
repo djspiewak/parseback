@@ -1,4 +1,3 @@
 object Versions {
-  val Specs = "3.8.7"
-  val Shims = "0.4.2"
+  val Specs = "4.0.2"
 }

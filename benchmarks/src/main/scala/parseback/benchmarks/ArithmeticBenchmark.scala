@@ -127,7 +127,6 @@ class ArithmeticBenchmarks {
   @Benchmark
   def parsebackRun(): Unit = {
     import _root_.parseback.LineStream
-    import _root_.parseback.compat.cats._
 
     import cats.Eval
 

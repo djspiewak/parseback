@@ -17,12 +17,10 @@
 package parseback
 package render
 
-import util.EitherSyntax._
-
 sealed trait RenderResult extends Product with Serializable
 
 object RenderResult {
-  type TokenSequence = List[Parser[_] \/ String]
+  type TokenSequence = List[Either[Parser[_], String]]
 
   final case class Nonterminal(label: String, branches: List[Parser[_]]) extends RenderResult
   final case class Tokens(contents: TokenSequence) extends RenderResult

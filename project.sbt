@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import scala.sys.process._
+
 addCommandAlias("ci", ";test ;mimaReportBinaryIssues")
 
 organization in ThisBuild := "com.codecommit"
@@ -51,14 +53,14 @@ name := "parseback"
  * version bump of 1.0.  Again, this is all to avoid pre-committing
  * to a major/minor bump before the work is done (see: Scala 2.8).
  */
-val BaseVersion = "0.3.0"
+val BaseVersion = "0.4.0"
 
 licenses in ThisBuild += ("Apache-2.0", url("http://www.apache.org/licenses/"))
 
 bintrayVcsUrl in ThisBuild := Some("git@github.com:djspiewak/parseback.git")
 
-publish := ()
-publishLocal := ()
+publish := {}
+publishLocal := {}
 publishArtifact := false
 
 val coursierSettings = Seq(
@@ -68,10 +70,12 @@ val coursierSettings = Seq(
 
 val bintraySettings = Seq(
   credentials in bintray := {
+    val old = (credentials in bintray).value
+
     if (isTravisBuild.value)
       Nil
     else
-      (credentials in bintray).value
+      old
   }
 )
 
@@ -102,14 +106,12 @@ addCommandAlias("profile", "benchmarks/jmh:run -prof jmh.extras.JFR -f 1 .*parse
 
 lazy val root = project
   .in(file("."))
-  .aggregate(
-    benchmarks, coreJVM, coreJS, renderJVM, renderJS,
-    catsJVM, catsJS, scalaz72JVM, scalaz72JS, scalaz71)
+  .aggregate(benchmarks, coreJVM, coreJS, renderJVM, renderJS)
   .settings(coursierSettings, bintraySettings)
 
 lazy val benchmarks = project
   .in(file("benchmarks"))
-  .dependsOn(coreJVM, catsJVM)
+  .dependsOn(coreJVM)
   .settings(
     name := "parseback-benchmarks",
     coursierSettings,
@@ -119,8 +121,8 @@ lazy val benchmarks = project
       "com.codecommit"         %% "gll-combinators"          % "2.3",
       "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.5"),
 
-    publish := (),
-    publishLocal := (),
+    publish := {},
+    publishLocal := {},
     publishArtifact := false,
 
     sourceDirectory in Jmh := (sourceDirectory in Compile).value)
@@ -135,9 +137,8 @@ lazy val core = crossProject
     bintraySettings,
     mimaSettings)
   .settings(
-    libraryDependencies += "com.codecommit" %%% "shims-core" % Versions.Shims,
+    libraryDependencies += "org.typelevel" %%% "cats-core" % "1.1.0",
     libraryDependencies ++= Seq(
-      "com.codecommit" %% "shims-cats"        % Versions.Shims % Test,
       "org.scalacheck" %% "scalacheck"        % "1.13.4"       % Test,
       "org.specs2"     %% "specs2-core"       % Versions.Specs % Test,
       "org.specs2"     %% "specs2-scalacheck" % Versions.Specs % Test
@@ -154,49 +155,10 @@ lazy val core = crossProject
 lazy val coreJS = core.js
 lazy val coreJVM = core.jvm
 
-lazy val cats = crossProject
-  .crossType(CrossType.Pure)
-  .in(file("cats"))
-  .dependsOn(core)
-  .settings(
-    name := "parseback-cats",
-    coursierSettings,
-    bintraySettings,
-    mimaSettings)
-  .settings(
-    libraryDependencies += "com.codecommit" %%% "shims-cats" % Versions.Shims)
-lazy val catsJS = cats.js
-lazy val catsJVM = cats.jvm
-
-lazy val scalaz71 = project
-  .in(file("scalaz71"))
-  .dependsOn(coreJVM)
-  .settings(
-    name := "parseback-scalaz-71",
-    coursierSettings,
-    bintraySettings,
-    mimaSettings)
-  .settings(
-    libraryDependencies += "com.codecommit" %% "shims-scalaz-71" % Versions.Shims)
-
-lazy val scalaz72 = crossProject
-  .crossType(CrossType.Pure)
-  .in(file("scalaz72"))
-  .dependsOn(core)
-  .settings(
-    name := "parseback-scalaz-72",
-    coursierSettings,
-    bintraySettings,
-    mimaSettings)
-  .settings(
-    libraryDependencies += "com.codecommit" %%% "shims-scalaz-72" % Versions.Shims)
-lazy val scalaz72JS = scalaz72.js
-lazy val scalaz72JVM = scalaz72.jvm
-
 lazy val render = crossProject
   .crossType(CrossType.Pure)
   .in(file("render"))
-  .dependsOn(cats)
+  .dependsOn(core)
   .settings(
     name := "parseback-render",
     coursierSettings,

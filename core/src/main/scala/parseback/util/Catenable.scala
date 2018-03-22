@@ -16,7 +16,7 @@
 
 package parseback.util
 
-import shims.{Applicative, Monad, Monoid, Traverse}
+import cats.{Applicative, Eval, Monad, Monoid, StackSafeMonad, Traverse}
 
 import scala.annotation.tailrec
 
@@ -135,10 +135,32 @@ sealed trait Catenable[+A] {
         c1 ++ c2
       }
 
-      G.ap(left2)(rightF)
+      G.ap(rightF)(left2)
 
     case Single(value) => G.map(f(value)) { Single(_) }
     case Empty => G point Empty
+  }
+
+  def foldLeft[B](z: B)(f: (B, A) => B): B = {
+    uncons match {
+      case Some((a, tail)) =>
+        tail.foldLeft(f(z, a))(f)
+
+      case None =>
+        z
+    }
+  }
+
+  def foldRight[B](lz: Eval[B])(f: (A, Eval[B]) => Eval[B]): Eval[B] = {
+    Eval defer {
+      uncons match {
+        case Some((a, tail)) =>
+          f(a, tail.foldRight(lz)(f))
+
+        case None =>
+          lz
+      }
+    }
   }
 
   final def isEmpty: Boolean = this match {
@@ -159,25 +181,31 @@ sealed trait Catenable[+A] {
 
 object Catenable {
 
-  implicit val monad: Monad[Catenable] with Traverse[Catenable] = new Monad[Catenable] with Traverse[Catenable] {
+  implicit val monad: Monad[Catenable] with Traverse[Catenable] = new Monad[Catenable] with Traverse[Catenable] with StackSafeMonad[Catenable] {
 
-    def point[A](a: A) = Single(a)
+    def pure[A](a: A) = Single(a)
 
     def flatMap[A, B](c: Catenable[A])(f: A => Catenable[B]) =
       c flatMap f
 
-    def map[A, B](c: Catenable[A])(f: A => B) =
+    override def map[A, B](c: Catenable[A])(f: A => B) =
       c map f
 
     def traverse[G[_]: Applicative, A, B](c: Catenable[A])(f: A => G[B]): G[Catenable[B]] =
       c traverse f
+
+    def foldLeft[A, B](fa: Catenable[A], b: B)(f: (B, A) => B): B =
+      fa.foldLeft(b)(f)
+
+    def foldRight[A, B](fa: Catenable[A], lb: Eval[B])(f: (A, Eval[B]) => Eval[B]): Eval[B] =
+      fa.foldRight(lb)(f)
   }
 
   implicit def monoid[A]: Monoid[Catenable[A]] = new Monoid[Catenable[A]] {
 
-    def zero = Empty
+    def empty = Empty
 
-    def append(left: Catenable[A], right: => Catenable[A]) =
+    def combine(left: Catenable[A], right: Catenable[A]) =
       left ++ right
   }
 

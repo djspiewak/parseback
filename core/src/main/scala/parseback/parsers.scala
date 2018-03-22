@@ -16,14 +16,13 @@
 
 package parseback
 
-import shims.{Applicative, Monad}
-
-import scala.util.matching.{Regex => SRegex}
+import cats.{Applicative, Monad}
 
 import util.Catenable
-import util.EitherSyntax._
 
 import scala.annotation.unchecked.uncheckedVariance
+import scala.util.matching.{Regex => SRegex}
+import scala.util.{Either, Left, Right}
 
 import MemoTable.ParserId
 
@@ -104,7 +103,7 @@ sealed trait Parser[+A] {
    * Please note that F[_] should be lazy and stack-safe.  If F[_] is not stack-safe,
    * this function will SOE on inputs with a very large number of lines.
    */
-  final def apply[F[+_]: Monad](ls: LineStream[F])(implicit W: Whitespace): F[List[ParseError] \/ Catenable[A]] = {
+  final def apply[F[+_]: Monad](ls: LineStream[F])(implicit W: Whitespace): F[Either[List[ParseError], Catenable[A]]] = {
     import LineStream._
 
     def markRoots(self: Parser[_], tracked: Set[ParserId[_]]): Set[ParserId[_]] = {
@@ -140,7 +139,7 @@ sealed trait Parser[+A] {
       }
     }
 
-    def inner(self: Parser[A], table: MemoTable)(ls: LineStream[F]): F[List[ParseError] \/ Catenable[A]] = {
+    def inner(self: Parser[A], table: MemoTable)(ls: LineStream[F]): F[Either[List[ParseError], Catenable[A]]] = {
       ls match {
         case More(line, tail) =>
           trace(s"current line = ${line.project}")
@@ -328,9 +327,9 @@ sealed trait Parser[+A] {
 object Parser {
 
   implicit val applicative: Applicative[Parser] = new Applicative[Parser] {
-    def point[A](a: A): Parser[A] = Epsilon(a)
-    def ap[A, B](fa: Parser[A])(ff: Parser[A => B]): Parser[B] = (ff map2 fa) { _(_) }
-    def map[A, B](fa: Parser[A])(f: A => B): Parser[B] = fa map f
+    def pure[A](a: A): Parser[A] = Epsilon(a)
+    def ap[A, B](ff: Parser[A => B])(fa: Parser[A]): Parser[B] = (ff map2 fa) { _(_) }
+    override def map[A, B](fa: Parser[A])(f: A => B): Parser[B] = fa map f
   }
 
   /**
@@ -356,9 +355,9 @@ object Parser {
           /*
            * Failure is nullable, but it will return a left when finished
            */
-          case -\/(_) => nonNulled
+          case Left(_) => nonNulled
 
-          case \/-(results) =>
+          case Right(results) =>
             // iff we have interleaving whitespace, rewrite self to
             // have whitespace be the new left, interleaved with no
             // new whitespace

@@ -18,7 +18,8 @@ package parseback
 
 import util.Catenable
 import util.Catenable.Syntax
-import util.EitherSyntax._
+
+import scala.util.{Either, Left, Right}
 
 // semantics must mirror Nullable
 sealed trait Results[+A] {
@@ -57,10 +58,10 @@ sealed trait Results[+A] {
     case (Hypothetical(h1), Hypothetical(h2)) => Hypothetical(ParseError.prioritize(h1 ::: h2))
   }
 
-  final def toEither: List[ParseError] \/ Catenable[A] = this match {
-    case Success(results) => \/-(results)
-    case Failure(errors) => -\/(errors)
-    case Hypothetical(errors) => -\/(errors)
+  final def toEither: Either[List[ParseError], Catenable[A]] = this match {
+    case Success(results) => Right(results)
+    case Failure(errors) => Left(errors)
+    case Hypothetical(errors) => Left(errors)
   }
 }
 

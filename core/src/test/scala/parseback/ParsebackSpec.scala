@@ -22,20 +22,20 @@ import org.specs2.matcher.Matcher
 import org.specs2.mutable._
 import org.specs2.specification.SpecificationFeatures
 
-import util.EitherSyntax._
+import scala.util.{Left, Right}
 
-trait ParsebackSpec extends Spec with SpecificationFeatures with shims.Implicits {
+trait ParsebackSpec extends Spec with SpecificationFeatures {
 
   final def recognize[A](input: String, ambiguous: Boolean = true)(implicit W: Whitespace): Matcher[Parser[A]] = { p: Parser[A] =>
     val maybeResults = p(LineStream[Eval](input)).value
 
     maybeResults match {
-      case \/-(results) =>
+      case Right(results) =>
         (ambiguous || results.toList.length == 1,    // TODO implement lengthCompare
           s"recognized '$input'",
           s"recognized '$input', but with multiple results: $results")
 
-      case -\/(err) =>
+      case Left(err) =>
         (false, "", s"failed to recognize '$input' with error $err")
     }
   }
@@ -46,7 +46,7 @@ trait ParsebackSpec extends Spec with SpecificationFeatures with shims.Implicits
     val maybeResults = p(LineStream[Eval](input)).value
 
     maybeResults match {
-      case \/-(actual) =>
+      case Right(actual) =>
         val actualList = actual.toList
         val permuted = actualList flatMap { a => results map { b => (a, b) } }
 
@@ -58,7 +58,7 @@ trait ParsebackSpec extends Spec with SpecificationFeatures with shims.Implicits
           s"accepted '$input' with results $actual",
           s"accepted '$input' but produced results $actualList, expected $results")
 
-      case -\/(err) =>
+      case Left(err) =>
         (false, "", s"failed to parse '$input' with error $err")
     }
   }
@@ -67,10 +67,10 @@ trait ParsebackSpec extends Spec with SpecificationFeatures with shims.Implicits
     val maybeResults = p(LineStream[Eval](input)).value
 
     maybeResults match {
-      case \/-(results) =>
+      case Right(results) =>
         (false, "", s"failed to reject '$input' with results $results")
 
-      case -\/(actual) =>
+      case Left(actual) =>
         val permuted = actual flatMap { a => errors map { b => (a, b) } }
 
         val compared = permuted filter {

@@ -22,8 +22,6 @@ import cats.instances.option._
 import cats.data.State
 import cats.syntax.all._
 
-import util.EitherSyntax._
-
 object Renderer {
   import Parser._
 
@@ -50,14 +48,14 @@ object Renderer {
           }: _*)
 
           rendered <- seq traverse {
-            case -\/(p) =>
+            case Left(p) =>
               if (inverted contains p) {
                 State.pure[RenderState, List[String]](inverted(p) :: Nil)
               } else {
                 render(p) flatMap handleSequence
               }
 
-            case \/-(str) =>
+            case Right(str) =>
               State.pure[RenderState, List[String]](str :: Nil)
           }
         } yield rendered.flatten
@@ -106,7 +104,7 @@ object Renderer {
 
   def render(self: Parser[_]): State[RenderState, RenderResult.TokenSequence] = self match {
     case Sequence(left, _, right) =>
-      State pure (-\/(left) :: -\/(right) :: Nil)
+      State pure (Left(left) :: Left(right) :: Nil)
 
     case Union(_, _) =>
       for {
@@ -114,7 +112,7 @@ object Renderer {
         (nts, labels) = st
 
         back <- if (nts.values exists { case (p, _) => p eq self }) {
-          State.pure[RenderState, RenderResult.TokenSequence](-\/(self) :: Nil)
+          State.pure[RenderState, RenderResult.TokenSequence](Left(self) :: Nil)
         } else {
           val (labels2, label) = assignLabel(labels)
 
@@ -122,27 +120,27 @@ object Renderer {
 
           for {
             _ <- State.set((nts + (label -> ((self, branches))), labels2))
-          } yield -\/(self) :: Nil
+          } yield Left(self) :: Nil
         }
       } yield back
 
     case Apply(target, _, _) =>
-      State pure (-\/(target) :: \/-("↪") :: \/-("λ") :: Nil)
+      State pure (Left(target) :: Right("↪") :: Right("λ") :: Nil)
 
     case Filter(target, _) =>
-      State pure (-\/(target) :: Nil)
+      State pure (Left(target) :: Nil)
 
     case Literal(literal, offset) =>
-      State pure ((s"'${literal substring offset}'" :: Nil) map { \/-(_) })
+      State pure ((s"'${literal substring offset}'" :: Nil) map { Right(_) })
 
     case Regex(r) =>
-      State pure ((s"/${r.pattern}/" :: Nil) map { \/-(_) })
+      State pure ((s"/${r.pattern}/" :: Nil) map { Right(_) })
 
     case Epsilon(value) =>
-      State pure ((s"ε=${value.toString}" :: Nil) map { \/-(_) })
+      State pure ((s"ε=${value.toString}" :: Nil) map { Right(_) })
 
     case Failure(errors) =>
-      State pure (("!!" :: Nil) map { \/-(_) })
+      State pure (("!!" :: Nil) map { Right(_) })
   }
 
   private def gatherBranches(self: Parser[_], root: Option[Parser[_]]): List[Parser[_]] = self match {
