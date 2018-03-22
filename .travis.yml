@@ -2,8 +2,8 @@ sudo: false
 language: scala
 
 scala:
-  - 2.11.8
-  - 2.12.1
+  - 2.11.11
+  - 2.12.4
 
 script:
   - sbt ++$TRAVIS_SCALA_VERSION ci

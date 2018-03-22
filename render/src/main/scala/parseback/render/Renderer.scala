@@ -73,7 +73,7 @@ object Renderer {
       (nts, labels) = st
 
       // if we ARE a non-terminal, relabel as start
-      relabeled <- nts find { case (_, (p, _)) => p eq this } traverse {
+      relabeled <- nts find { case (_, (p, _)) => p eq self } traverse {
         case (label, (target, branches)) =>
           val nts2 = nts - label + ("𝑆" -> ((target, branches)))
           val labels2 = labels - label + "𝑆"
