@@ -106,7 +106,7 @@ addCommandAlias("profile", "benchmarks/jmh:run -prof jmh.extras.JFR -f 1 .*parse
 
 lazy val root = project
   .in(file("."))
-  .aggregate(benchmarks, coreJVM, coreJS, renderJVM, renderJS)
+  .aggregate(benchmarks, coreJVM, coreJS)
   .settings(coursierSettings, bintraySettings)
 
 lazy val benchmarks = project
@@ -154,18 +154,6 @@ lazy val core = crossProject
 
 lazy val coreJS = core.js
 lazy val coreJVM = core.jvm
-
-lazy val render = crossProject
-  .crossType(CrossType.Pure)
-  .in(file("render"))
-  .dependsOn(core)
-  .settings(
-    name := "parseback-render",
-    coursierSettings,
-    bintraySettings/*,
-    mimaSettings*/)
-lazy val renderJS = render.js
-lazy val renderJVM = render.jvm
 
 /***********************************************************************\
                       Boilerplate below these lines
