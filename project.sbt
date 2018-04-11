@@ -17,6 +17,7 @@
 import scala.sys.process._
 
 addCommandAlias("ci", ";test ;mimaReportBinaryIssues")
+addCommandAlias("release", ";reload ;+publishSigned")
 
 organization in ThisBuild := "com.codecommit"
 
