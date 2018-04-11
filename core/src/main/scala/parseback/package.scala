@@ -50,6 +50,8 @@ package object parseback {
   implicit def regexEager(r: SRegex): EagerParser1Syntax[String] =
     EagerParser1Syntax(regex(r))
 
+  def ε: Parser[Unit] = unit(())
+
   implicit def unit(u: Unit): Parser[Unit] =
     Parser.Epsilon(())
 
