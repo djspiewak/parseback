@@ -205,6 +205,8 @@ libraryDependencies in ThisBuild ++= {
 
 enablePlugins(GitVersioning)
 
+useGpg in Global := true
+
 val ReleaseTag = """^v([\d\.]+)$""".r
 
 git.baseVersion := BaseVersion
