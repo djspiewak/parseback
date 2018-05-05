@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-baseVersion in ThisBuild := "0.4.0"
+baseVersion in ThisBuild := "0.4"
 
 bintrayVcsUrl in ThisBuild := Some("git@github.com:djspiewak/parseback.git")
 
