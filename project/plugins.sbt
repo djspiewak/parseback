@@ -14,17 +14,8 @@
  * limitations under the License.
  */
 
-addSbtPlugin("io.get-coursier" % "sbt-coursier" % "1.0.2")
+resolvers += Resolver.url("djspiewak-sbt-plugins", url("https://dl.bintray.com/djspiewak/sbt-plugins"))(Resolver.ivyStylePatterns)
 
-addSbtPlugin("com.dwijnand" % "sbt-travisci" % "1.1.1")
-
-addSbtPlugin("com.typesafe.sbt"  % "sbt-git"         % "0.9.3")
-addSbtPlugin("de.heikoseeberger" % "sbt-header"      % "5.0.0")
-addSbtPlugin("com.typesafe"      % "sbt-mima-plugin" % "0.1.18")
-addSbtPlugin("com.jsuereth"      % "sbt-pgp"         % "1.1.0")
-
-addSbtPlugin("org.foundweekends" % "sbt-bintray" % "0.5.3")
-
-addSbtPlugin("pl.project13.scala" % "sbt-jmh" % "0.3.3")
-
-addSbtPlugin("org.scala-js" % "sbt-scalajs" % "0.6.22")
+addSbtPlugin("com.codecommit"     % "sbt-spiewak-bintray" % "0.3.3")
+addSbtPlugin("pl.project13.scala" % "sbt-jmh"             % "0.3.3")
+addSbtPlugin("org.scala-js"       % "sbt-scalajs"         % "0.6.22")
