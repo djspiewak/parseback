@@ -53,7 +53,10 @@ sealed trait Parser[+A] {
 
   final def map2[B, C](that: Parser[B])(f: (A, B) => C): Parser[C] = (this ~ that) map f.tupled
 
-  def filter(p: A => Boolean): Parser[A] = Parser.Filter(this, p)
+  def filter(p: A => Boolean): Parser[A] = Parser.Filter(this, false, p)
+
+  // filter out but at least leave one element.
+  def filterLeaveOne(p: A => Boolean): Parser[A] = Parser.Filter(this, true, p)
 
   // TODO come up with a better name
   final def ~!~[B](that: Parser[B]): Parser[A ~ B] =
@@ -131,7 +134,7 @@ sealed trait Parser[+A] {
           case Apply(target, _, _) =>
             markRoots(target, tracked2)
 
-          case Filter(target, _) =>
+          case Filter(target, _, _) =>
             markRoots(target, tracked2)
 
           case _ => tracked
@@ -195,7 +198,7 @@ sealed trait Parser[+A] {
             p.nullableMemo = inner(target, tracked)
             p.nullableMemo
 
-          case p @ Filter(target, _) =>
+          case p @ Filter(target, _, _) =>
             p.nullableMemo = inner(target, tracked)
             p.nullableMemo
 
@@ -465,17 +468,18 @@ object Parser {
     }
   }
 
-  final case class Filter[A](target: Parser[A], p: A => Boolean) extends Parser[A] {
+  final case class Filter[A](target: Parser[A], leaveOne: Boolean, p: A => Boolean) extends Parser[A] {
     nullableMemo = target.nullableMemo
 
     override def filter(p2: A => Boolean): Parser[A] =
-      Filter(target, { a: A => p(a) && p2(a) })
+      Filter(target, leaveOne, { a: A => p(a) && p2(a) })
 
     protected def _derive(line: Line, table: MemoTable) =
-      Filter(target.derive(line, table), p)
+      Filter(target.derive(line, table), leaveOne, p)
 
     protected def _finish(seen: Set[ParserId[_]], table: MemoTable) =
-      target.finish(seen, table) pmap { _ filter p }
+      // if the Result is unique, no need to filter out.
+      target.finish(seen, table) pmap { c => if(c.length == 1 && leaveOne) c else c filter p }
   }
 
   final case class Literal(literal: String, offset: Int = 0) extends Parser[String] {

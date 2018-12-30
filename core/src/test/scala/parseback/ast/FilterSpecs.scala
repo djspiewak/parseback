@@ -148,6 +148,17 @@ object FilterSpecs extends ParsebackSpec {
       expr must parseOk("1 - 2 + 3")(Add(Sub(IntLit(1), IntLit(2)), IntLit(3)))
       expr must parseOk("1 + 2 * 3")(Add(IntLit(1), Mul(IntLit(2), IntLit(3))))
     }
+
+    "disambiguate left-associativity with explicit parenthesis" in {
+      lazy val expr: Parser[Expr] = (
+        expr ~ "+" ~ expr ^^ { (_, e1, _, e2) => Add(e1, e2) }
+          | "(" ~> expr <~ ")"
+          | num               ^^ { (_, n) => IntLit(n) }
+        ) filterLeaveOne prec(Add)
+
+      expr must parseOk("1 + (2 + 3)")(Add(IntLit(1), Add(IntLit(2), IntLit(3))))
+    }
+
   }
 
   // %%

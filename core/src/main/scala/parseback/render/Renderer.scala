@@ -127,7 +127,7 @@ object Renderer {
     case Apply(target, _, _) =>
       State pure (Left(target) :: Right("↪") :: Right("λ") :: Nil)
 
-    case Filter(target, _) =>
+    case Filter(target, _, _) =>
       State pure (Left(target) :: Nil)
 
     case Literal(literal, offset) =>
