@@ -19,6 +19,7 @@ package parseback.util
 import cats.{Applicative, Eval, Monad, Monoid, StackSafeMonad, Traverse}
 
 import scala.annotation.tailrec
+import scala.util.control.TailCalls._
 
 sealed trait Catenable[+A] {
   import Catenable._
@@ -49,31 +50,31 @@ sealed trait Catenable[+A] {
           type Thunk = () => Catenable[A]
 
           @tailrec
-          def backtrack(rights: List[Thunk]): Option[(List[Thunk], A)] = {
+          def backtrack(rights: List[Thunk]): TailRec[Option[(List[Thunk], A)]] = {
             rights match {
               case self :: tail =>
                 self() match {
-                  case self @ Append(_, _) => deconstruct(self, tail)
-                  case Single(value) => Some((tail, value))
+                  case self @ Append(_, _) => tailcall{ deconstruct(self, tail) }
+                  case Single(value) => done(Some((tail, value)))
                   case Empty => backtrack(tail)
                 }
 
-              case Nil => None
+              case Nil => done(None)
             }
           }
 
           @tailrec
-          def deconstruct(self: Catenable[A], rights: List[Thunk]): Option[(List[Thunk], A)] = {
+          def deconstruct(self: Catenable[A], rights: List[Thunk]): TailRec[Option[(List[Thunk], A)]] = {
             self match {
               case self @ Append(_, _) =>
                 deconstruct(self.left, { () => self.right } :: rights)
 
-              case Single(value) => Some((rights, value))
-              case Empty => backtrack(rights)
+              case Single(value) => done(Some((rights, value)))
+              case Empty => tailcall { backtrack(rights) }
             }
           }
 
-          deconstruct(self.left, List(() => self.right)) map {
+          deconstruct(self.left, List(() => self.right)).result map {
             case (rights, a) =>
               val tailOption = rights reduceRightOption { (l, r) =>
                 () => Append(l, r)
