@@ -58,17 +58,13 @@ sealed trait Parser[+A] {
   // filter out but at least leave one element.
   def filterLeaveOne(p: A => Boolean): Parser[A] = Parser.Filter(this, true, p)
 
-  // TODO come up with a better name
-  final def ~!~[B](that: Parser[B]): Parser[A ~ B] =
-    Parser.sequence(this, None, that)
+  final def ~[B](that: Parser[B]): Parser[A ~ B] =
+    Parser.sequence(this, that)
 
-  final def ~[B](that: Parser[B])(implicit W: Whitespace): Parser[A ~ B] =
-    Parser.sequence(this, W.layout, that)
-
-  final def ~>[B](that: Parser[B])(implicit W: Whitespace): Parser[B] =
+  final def ~>[B](that: Parser[B]): Parser[B] =
     (this ~ that) map { case _ ~ b => b }
 
-  final def <~[B](that: Parser[B])(implicit W: Whitespace): Parser[A] =
+  final def <~[B](that: Parser[B]): Parser[A] =
     (this ~ that) map { case a ~ _ => a }
 
   def ^^^[B](b: B): Parser[B] = map { _ => b }
@@ -106,7 +102,7 @@ sealed trait Parser[+A] {
    * Please note that F[_] should be lazy and stack-safe.  If F[_] is not stack-safe,
    * this function will SOE on inputs with a very large number of lines.
    */
-  final def apply[F[+_]: Monad](ls: LineStream[F])(implicit W: Whitespace): F[Either[List[ParseError], Catenable[A]]] = {
+  final def apply[F[+_]: Monad](ls: LineStream[F]): F[Either[List[ParseError], Catenable[A]]] = {
     import LineStream._
 
     def markRoots(self: Parser[_], tracked: Set[ParserId[_]]): Set[ParserId[_]] = {
@@ -122,11 +118,10 @@ sealed trait Parser[+A] {
         self.isRoot = true
 
         self match {
-          case Sequence(left, layout, right) =>
+          case Sequence(left, right) =>
             val tracked3 = markRoots(left, tracked2)
-            val tracked4 = layout map { markRoots(_, tracked3) } getOrElse tracked3
 
-            markRoots(right, tracked4)
+            markRoots(right, tracked3)
 
           case self @ Union(_, _) =>
             markRoots(self.right, markRoots(self.left, tracked2))
@@ -160,15 +155,9 @@ sealed trait Parser[+A] {
       }
     }
 
-    val wrapped = W.layout map { ws =>
-      ws ~!~ this ~!~ ws map {
-        case ((_, v), _) => v   // we don't care about whitespace results
-      }
-    } getOrElse this
+    markRoots(this, Set.empty)
 
-    markRoots(wrapped, Set.empty)
-
-    inner(wrapped, new InitialMemoTable)(ls)
+    inner(this, new InitialMemoTable)(ls)
   }
 
   protected[parseback] final def isNullable: Boolean = {
@@ -182,10 +171,8 @@ sealed trait Parser[+A] {
         p.nullableMemo
       } else {
         p match {
-          case p @ Sequence(left, layout, right) =>
-            val wsNullable = layout map { inner(_, tracked) } getOrElse True
-
-            p.nullableMemo = inner(left, tracked) && wsNullable && inner(right, tracked)
+          case p @ Sequence(left, right) =>
+            p.nullableMemo = inner(left, tracked) && inner(right, tracked)
             p.nullableMemo
 
           case p @ Union(_, _) =>
@@ -338,17 +325,13 @@ object Parser {
   /**
    * Two sequentialized parsers with optionally interleaving whitespace.
    */
-  final case class Sequence[+A, +B](left: Parser[A], layout: Option[Parser[_]], right: Parser[B]) extends Parser[A ~ B] {
-    nullableMemo = {
-      val wsNullable = layout map { _.nullableMemo } getOrElse Nullable.True
-
-      left.nullableMemo && wsNullable && right.nullableMemo
-    }
+  final case class Sequence[+A, +B](left: Parser[A], right: Parser[B]) extends Parser[A ~ B] {
+    nullableMemo = left.nullableMemo && right.nullableMemo
 
     protected def _derive(line: Line, table: MemoTable): Parser[A ~ B] = {
       trace(s">> deriving $this")
 
-      val nonNulled = sequence(left.derive(line, table), layout, right)
+      val nonNulled = sequence(left.derive(line, table), right)
 
       if (left.isNullable) {
         trace(s"  >> left is nullable")
@@ -361,16 +344,7 @@ object Parser {
           case Left(_) => nonNulled
 
           case Right(results) =>
-            // iff we have interleaving whitespace, rewrite self to
-            // have whitespace be the new left, interleaved with no
-            // new whitespace
-            val rhs = layout map { ws =>
-              sequence(ws, None, right) map {
-                case (_, r) => r
-              }
-            } getOrElse right
-
-            val nulled = Parser.apply(rhs.derive(line, table), { (_, b: B) =>
+            val nulled = Parser.apply(right.derive(line, table), { (_, b: B) =>
               results map { (_, b) }
             })
 
@@ -383,25 +357,17 @@ object Parser {
     }
 
     protected def _finish(seen: Set[ParserId[_]], table: MemoTable) = {
-      val wsFinish =
-        layout map { _.finish(seen, table) } getOrElse Results.Success(Catenable(()))
-
-      val leftFinish = (left.finish(seen, table) && wsFinish) map {
-        case (a, _) => a
-      }
-
-      leftFinish && right.finish(seen, table)
+      left.finish(seen, table) && right.finish(seen, table)
     }
   }
 
   private[parseback] def sequence[A, B](
       left: Parser[A],
-      layout: Option[Parser[_]],
       right: Parser[B]): Parser[A ~ B] = {
 
     left match {
-      case Sequence(innerLeft, innerLayout, innerRight) =>
-        sequence(innerLeft, innerLayout, sequence(innerRight, layout, right)) map {
+      case Sequence(innerLeft, innerRight) =>
+        sequence(innerLeft, sequence(innerRight, right)) map {
           case (a, (b, c)) => ((a, b), c)
         }
 
@@ -412,16 +378,14 @@ object Parser {
           left.f(lines, e) map { (_, b) }
         }
 
-        apply(sequence(left.target, layout, right), f, left.lines)
+        apply(sequence(left.target, right), f, left.lines)
 
       case Epsilon(value) =>
-        layout map { ws =>
-          sequence(ws, None, right) map { case (_, b) => (value, b) }
-        } getOrElse (right map { (value, _) })
+        right map { (value, _) }
 
       case f @ Failure(_) => f
 
-      case _ => Sequence(left, layout, right)
+      case _ => Sequence(left, right)
     }
   }
 
