@@ -20,7 +20,7 @@ package object parseback {
 
   // TODO macroize
   private[parseback] def trace(str: => String): Unit = {
-    // println(str)
+    //println(str)
   }
 
   // external syntax
@@ -29,10 +29,7 @@ package object parseback {
   val ~ = Tuple2
 
   implicit def literal(str: String): Parser[String] = {
-    if (str.isEmpty)
-      Parser.Epsilon("")
-    else
-      Parser.Literal(str, 0)
+    Parser.Literal(str)
   }
 
   implicit def literalLazy(str: String): LazyParserSyntax[String] =

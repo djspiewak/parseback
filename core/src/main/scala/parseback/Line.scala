@@ -21,11 +21,11 @@ package parseback
  * @param lineNo The line offset of this line within the larger input stream (0 indexed)
  * @param colNo The column offset into `base` (0 indexed)
  */
-final case class Line(base: String, lineNo: Int = 0, colNo: Int = 0) {
+final case class Line(base: Array[Token], lineNo: Int = 0, colNo: Int = 0) {
 
-  def head: Char = base charAt colNo
+  def head: Token = base(colNo)
 
-  def project: String = base substring colNo
+  def project: String = base.mkString(" ")
 
   def isEmpty: Boolean = base.length == colNo
 
@@ -37,9 +37,11 @@ final case class Line(base: String, lineNo: Int = 0, colNo: Int = 0) {
 
   def renderError: String =
     base + s"${0 until colNo map { _ => ' ' } mkString}^"
+
+  override def toString: String = s"List(${this.head}, ${lineNo}, ${colNo})"
 }
 
-object Line extends ((String, Int, Int) => Line) {
+object Line extends ((Array[Token], Int, Int) => Line) {
 
   def addTo(lines: Vector[Line], line: Line): Vector[Line] = {
     if (lines.isEmpty) {

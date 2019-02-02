@@ -130,8 +130,8 @@ object Renderer {
     case Filter(target, _, _) =>
       State pure (Left(target) :: Nil)
 
-    case Literal(literal, offset) =>
-      State pure ((s"'${literal substring offset}'" :: Nil) map { Right(_) })
+    case Literal(literal) =>
+      State pure ((s"'${literal.toString}'" :: Nil) map { Right(_) })
 
     case Regex(r) =>
       State pure ((s"/${r.pattern}/" :: Nil) map { Right(_) })

@@ -39,7 +39,7 @@ sealed trait Parser[+A] {
   private[parseback] var isRoot: Boolean = false
 
   private[parseback] var derivedTable: FieldMemoTable = _
-  private[parseback] var derivedC: Char = _
+  private[parseback] var derivedC: Token = _
   private[parseback] var derivedR: Parser[A @uncheckedVariance] = _
 
   private[parseback] var finishedTable: FieldMemoTable = _
@@ -81,7 +81,7 @@ sealed trait Parser[+A] {
   def *(): Parser[List[A]] = {
     lazy val back: Parser[List[A]] = (
         this ~ back   ^^ { (_, h, t) => h :: t }
-      | ""           ^^^ Nil
+      | Parser.Epsilon(())           ^^^ Nil
     )
 
     back
@@ -204,7 +204,7 @@ sealed trait Parser[+A] {
 
           // the following four cases should never be hit, but they
           // are correctly defined here for documentation purposes
-          case p @ Literal(_, _) =>
+          case p @ Literal(_) =>
             p.nullableMemo = False
             False
 
@@ -479,28 +479,22 @@ object Parser {
 
     protected def _finish(seen: Set[ParserId[_]], table: MemoTable) =
       // if the Result is unique, no need to filter out.
-      target.finish(seen, table) pmap { c => if(c.length == 1 && leaveOne) c else c filter p }
+      target.finish(seen, table) pmap { c => if(leaveOne && c.length == 1) c else c filter p }
   }
 
-  final case class Literal(literal: String, offset: Int = 0) extends Parser[String] {
-    require(literal.length > 0)
-    require(offset < literal.length)
-
+  final case class Literal(literal: String) extends Parser[String] {
     nullableMemo = Nullable.False
 
     protected def _derive(line: Line, table: MemoTable): Parser[String] = {
-      if (literal.charAt(offset) == line.head) {
-        if (offset == literal.length - 1)
+      if (literal == line.head.toString) {
           Epsilon(literal)
-        else
-          Literal(literal, offset + 1)
       } else {
-        Failure(ParseError.UnexpectedCharacter(line, Set(literal substring offset)) :: Nil)
+        Failure(ParseError.UnexpectedCharacter(line, Set(literal)) :: Nil)
       }
     }
 
     protected def _finish(seen: Set[ParserId[_]], table: MemoTable) =
-      Results.Failure(ParseError.UnexpectedEOF(Set(literal substring offset)) :: Nil)
+      Results.Failure(ParseError.UnexpectedEOF(Set(literal.toString)) :: Nil)
   }
 
   // note that regular expressions cannot cross line boundaries
@@ -510,13 +504,10 @@ object Parser {
     nullableMemo = Nullable.False
 
     protected def _derive(line: Line, table: MemoTable): Parser[String] = {
-      val m = r findPrefixOf line.project
+      val m = r findPrefixOf line.head.toString
 
       val success = m map { lit =>
-        if (lit.length == 1)
-          Epsilon(lit)
-        else
-          Literal(lit, 1)
+        Epsilon(lit)
       }
 
       success getOrElse Failure(ParseError.UnexpectedCharacter(line, Set(r.toString)) :: Nil)
