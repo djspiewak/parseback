@@ -38,12 +38,12 @@ sealed trait LineStream[F[+_]] extends Product with Serializable {
 
 object LineStream {
 
-  def apply[F[+_]: Applicative](str: String, tokenizer: String => Array[Token]): LineStream[F] = {
+  def apply[F[+_]: Applicative](str: String, lexer: String => Array[Token]): LineStream[F] = {
     if (str.isEmpty) {
       Empty()
     } else {
       val splits: Array[String] = str split """\r|\r?\n"""
-      apply(splits.map(tokenizer))
+      apply(splits.map(lexer))
     }
   }
 
