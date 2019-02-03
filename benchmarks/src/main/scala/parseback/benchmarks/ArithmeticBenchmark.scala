@@ -17,6 +17,7 @@
 package parseback.benchmarks
 
 import org.openjdk.jmh.annotations._
+import parseback.LexerHelper
 
 import scala.util.parsing.{combinator => spc}
 
@@ -129,6 +130,8 @@ class ArithmeticBenchmarks {
     import _root_.parseback.LineStream
 
     import cats.Eval
+    val numR = """\d+""".r
+    implicit val lexer = LexerHelper.lexer(Option.empty, Set.empty, Set("+", "-", "*", "/", "(", ")"), Set(numR))
 
     val stream = LineStream[Eval](sample(size))
     parseback(stream).value

@@ -20,6 +20,8 @@ object CompoundParserSpec extends ParsebackSpec {
   import ParseError._
 
   "compound non-terminal parsers" should {
+    implicit val lexer = LexerHelper.lexer(None, Set.empty, Set.empty, Set("[a-z]".r))
+
     "parse an unambiguous right-recursive grammar" in {
       lazy val p: Parser[String] = (
           "a" ~ p ^^ { (_, a, p) => a + p }
@@ -158,13 +160,8 @@ object CompoundParserSpec extends ParsebackSpec {
     }
 
     "parse an unambiguous arithmetic grammar" in {
-      implicit val W = Whitespace({
-        implicitly[Whitespace] mustEqual Whitespace.Default
-
-        lazy val p: Parser[Any] = () | p ~ """\s+""".r
-
-        p
-      })
+      val numR = """\d+""".r
+      implicit val lexer = LexerHelper.lexer(Option("""\s+""".r), Set.empty, Set("+", "-", "*", "/", "(", ")"), Set(numR))
 
       lazy val expr: Parser[Int] = (
           expr ~ "+" ~ term     ^^ { (_, e1, _, e2) => e1 + e2 }
@@ -181,7 +178,7 @@ object CompoundParserSpec extends ParsebackSpec {
       lazy val factor: Parser[Int] = (
           "(" ~> expr <~ ")"
         | "-" ~> factor         ^^ { (_, i) => -i }
-        | """\d+""".r           ^^ { (_, str) => str.toInt }
+        | numR           ^^ { (_, str) => str.toInt }
       )
 
       val input = """
@@ -201,7 +198,7 @@ object CompoundParserSpec extends ParsebackSpec {
       case class TicVar(id: String) extends Expr
       case class Dispatch(actuals: Vector[Expr]) extends Expr
 
-      implicit val W = Whitespace(() | """\s+""".r)
+      implicit val lexer = LexerHelper.lexer(Option("""\s+""".r), Set.empty, Set(",", ":=", "(", ")"), Set("[a-z]".r))
 
       lazy val expr: Parser[Expr] = (
           "(" ~ formals ~ ")" ~ ":=" ^^ { (_, _, fs, _, _) => Binding(fs) }
@@ -220,10 +217,11 @@ object CompoundParserSpec extends ParsebackSpec {
     }
 
     "handle nested left-recursion" in {
-      implicit val W = Whitespace(() | """\s+""".r)
+      val numR = """\d+""".r
+      implicit val lexer = LexerHelper.lexer(Option("""\s+""".r), Set.empty, Set(",", "(", ")"), Set(numR))
 
       lazy val exp: Parser[Any] = (
-          n
+          numR
         | "(" ~ commaExps ~ ")"
         | exp ~ exp
       ) ^^^ null
@@ -232,8 +230,6 @@ object CompoundParserSpec extends ParsebackSpec {
           exp
         | commaExps ~ "," ~ exp
       )
-
-      lazy val n = """\d+"""r
 
       exp must recognize("(0,0) 2")
     }
@@ -299,6 +295,7 @@ object CompoundParserSpec extends ParsebackSpec {
     }*/
 
     "correctly globally disambiguate a local sequence ambiguity" in {
+      implicit val lexer = LexerHelper.lexer(None, Set.empty, Set(":="), Set("[a-z]".r, "[0-9]".r))
       lazy val expr: Parser[Any] = (
           id ~ ":=" ~ expr ~ expr
         | num
@@ -311,6 +308,7 @@ object CompoundParserSpec extends ParsebackSpec {
     }
 
     "successfully process a peculiar mutual left-recursion" in {
+      implicit val lexer = LexerHelper.lexer(None, Set.empty, Set(",", "+"), Set("[a-z]".r))
       lazy val expr: Parser[Any] = (
           prefix ~ "b"
         | "a"
@@ -326,6 +324,7 @@ object CompoundParserSpec extends ParsebackSpec {
     }
 
     "parse a reduced expression form without missing the primary terms" in {
+      implicit val lexer = LexerHelper.lexer(None, Set.empty, Set("+", "*"), Set("1".r))
       lazy val expr: Parser[Int] = (
           expr <~ "+" ^^ { (_, e) => e + 1 }
         | term
@@ -340,16 +339,15 @@ object CompoundParserSpec extends ParsebackSpec {
     }
 
     "globally disambiguate a local sequence ambiguity" in {
-      implicit val W = Whitespace(() | """\s+""".r)
+      lazy val id = """[a-zA-Z]""".r
+      lazy val num = """\d+""".r
+      implicit val lexer = LexerHelper.lexer(Option("""\s+""".r), Set.empty, Set(":="), Set(id, num))
 
       lazy val expr: Parser[Any] = (
           id ~ ":=" ~ expr ~ expr
         | num
         | id
       )
-
-      lazy val id = """[a-zA-Z]""".r
-      lazy val num = """\d+""".r
 
       expr must recognize("a := 1 c := 2 3", ambiguous = false)
     }

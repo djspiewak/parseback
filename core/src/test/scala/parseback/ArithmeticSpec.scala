@@ -20,7 +20,9 @@ object ArithmeticSpec extends ParsebackSpec {
   import ParseError._
 
   "expression evaluator" should {
-    implicit val W = Whitespace(() | """\s+""".r)
+    val whitespace = """\s+""".r
+    val numR = """\d+""".r
+    implicit val lexer = LexerHelper.lexer(Option(whitespace), Set.empty, Set("+", "-", "*", "/", "(", ")"), Set(numR))
 
     lazy val expr: Parser[Int] = (
         expr ~ "+" ~ term ^^ { (_, e, _, t) => e + t }
@@ -37,7 +39,7 @@ object ArithmeticSpec extends ParsebackSpec {
     lazy val factor: Parser[Int] = (
         "(" ~> expr <~ ")"
       | "-" ~ expr  ^^ { (_, _, e) => -e }
-      | """\d+""".r ^^ { (_, str) => str.toInt }
+      | numR ^^ { (_, str) => str.toInt }
     )
 
     "read and eval `1 + 2`" in {
@@ -50,7 +52,7 @@ object ArithmeticSpec extends ParsebackSpec {
     }
 
     "reject partial expressions" in {
-      expr must failToParse("3 + *")(UnexpectedCharacter(Line("3 + *", 0, 4), Set("""\d+""", "-", "(")))
+      expr must failToParse("3 + *")(UnexpectedCharacter(Line(Token("3", "+", "*"), 0, 2), Set("""\d+""", "-", "(")))
     }
   }
 }

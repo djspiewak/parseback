@@ -20,16 +20,16 @@ import scala.util.matching.Regex
 
 object LexerHelper {
 
-  def lexer(whitespace: Regex, keywords: Set[String], symbols: Set[String], others: Set[Regex]): String => Array[Token] = { str: String =>
+  def lexer(whitespace: Option[Regex], keywords: Set[String], symbols: Set[String], others: Set[Regex]): String => Array[Token] = { str: String =>
     type R = (Option[Token], Int)
 
     def lexingW(str: String, index: Int): Option[R] = {
-      whitespace.findPrefixOf(str) match {
+      whitespace.flatMap(_.findPrefixOf(str) match {
         case Some(space) =>
           Option((None, index + space.length))
         case None =>
           Option.empty
-      }
+      })
     }
 
     def lexingR(rs: Set[Regex], str: String, index: Int): Option[R] = {
@@ -53,13 +53,13 @@ object LexerHelper {
     }
 
     def trim(s:String): String = {
-      whitespace.replaceAllIn(s, "")
+      whitespace.map(_.replaceAllIn(s, "")).getOrElse(s)
     }
 
     def loop(index: Int): (Option[Token], Int) = {
       val sub = str.substring(index)
       lexingW(sub, index) getOrElse {
-        lexingR(keywords.map(r => s"${r}${whitespace.pattern}".r), sub, index) getOrElse {
+        lexingR(keywords.map(r => s"${r}${whitespace.map(_.pattern).getOrElse("")}".r), sub, index) getOrElse {
           lexingS(symbols, sub, index) getOrElse {
             lexingR(others, sub, index) getOrElse {
               throw new Exception(s"lexing fail at $sub")

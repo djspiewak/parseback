@@ -19,6 +19,9 @@ package parseback
 object SimpleParserSpec extends ParsebackSpec {
   import ParseError._
 
+  val numR = """\d+""".r
+  implicit val lexer = LexerHelper.lexer(Option.empty, Set.empty, Set("(", ")"), Set("[a-z]".r))
+
   "parentheses parser" should {
     lazy val p: Parser[Int] = (
         "(" ~> p <~ ")" ^^ { (_, i) => i + 1 }

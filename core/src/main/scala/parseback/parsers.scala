@@ -450,7 +450,7 @@ object Parser {
     nullableMemo = Nullable.False
 
     protected def _derive(line: Line, table: MemoTable): Parser[String] = {
-      if (literal == line.head.toString) {
+      if (literal == line.head.value) {
           Epsilon(literal)
       } else {
         Failure(ParseError.UnexpectedCharacter(line, Set(literal)) :: Nil)
@@ -458,7 +458,7 @@ object Parser {
     }
 
     protected def _finish(seen: Set[ParserId[_]], table: MemoTable) =
-      Results.Failure(ParseError.UnexpectedEOF(Set(literal.toString)) :: Nil)
+      Results.Failure(ParseError.UnexpectedEOF(Set(literal)) :: Nil)
   }
 
   // note that regular expressions cannot cross line boundaries
@@ -468,7 +468,7 @@ object Parser {
     nullableMemo = Nullable.False
 
     protected def _derive(line: Line, table: MemoTable): Parser[String] = {
-      val m = r findPrefixOf line.head.toString
+      val m = r findPrefixOf line.head.value
 
       val success = m map { lit =>
         Epsilon(lit)

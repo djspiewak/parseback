@@ -16,10 +16,8 @@
 
 package parseback
 
-trait Token {
-  def toString: String
-}
+case class Token(value: String)
 
 object Token {
-  def apply(str: String): Token = new Token { override def toString: String = str }
+  def apply(strs: String*): Array[Token] = strs.toArray.map(s=>Token(s))
 }
