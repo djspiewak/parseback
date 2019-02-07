@@ -116,7 +116,7 @@ class ArithmeticBenchmarks {
         else
           ""
 
-        neg + i.toString + operators(i % 4)
+        neg + i.toString + " " + operators(i % 4)
       } drop 1 mkString
     }
 
@@ -131,7 +131,8 @@ class ArithmeticBenchmarks {
 
     import cats.Eval
     val numR = """\d+""".r
-    implicit val lexer = LexerHelper.lexer(Option.empty, Set.empty, Set("+", "-", "*", "/", "(", ")"), Set(numR))
+    val whitespace = """\s+""".r
+    implicit val lexer = LexerHelper.lexer(Option(whitespace), Set.empty, Set("+", "-", "*", "/", "(", ")"), Set(numR))
 
     val stream = LineStream[Eval](sample(size))
     parseback(stream).value
