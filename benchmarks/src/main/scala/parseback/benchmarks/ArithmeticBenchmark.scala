@@ -122,7 +122,7 @@ class ArithmeticBenchmarks {
 
     val sizes = List(2, 4, 8, 16, 32, 64, 128)
 
-    sizes.map({ i => i -> inner(i) })(collection.breakOut)
+    sizes.map({ i => i -> inner(i).dropRight(1) })(collection.breakOut)
   }
 
   @Benchmark
