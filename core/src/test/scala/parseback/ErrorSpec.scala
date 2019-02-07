@@ -22,16 +22,16 @@ object ErrorSpec extends Specification {
   import ParseError._
 
   "error rendering" should {
-    val line = Line("Lorem ipsum dolor sit amet\n", lineNo = 0, colNo = 6)
+    val line = Line(Token("Lorem", "ipsum", "dolor", "sit", "amet", "\n"), lineNo = 0, colNo = 3)
 
     "print trailing characters" in {
       val error = UnexpectedTrailingCharacters(line)
-      error.render("ErrorSpec.scala") mustEqual "ErrorSpec.scala:1: unexpected trailing characters\nLorem ipsum dolor sit amet\n      ^"
+      error.render("ErrorSpec.scala") mustEqual "ErrorSpec.scala:1: unexpected trailing characters\nLorem ipsum dolor sit amet \n   ^"
     }
 
     "print unexpected characters" in {
       val error = UnexpectedCharacter(line, Set("foo", "bar"))
-      error.render("ErrorSpec.scala") mustEqual "ErrorSpec.scala:1: unexpected characters; expected 'foo' or 'bar'\nLorem ipsum dolor sit amet\n      ^"
+      error.render("ErrorSpec.scala") mustEqual "ErrorSpec.scala:1: unexpected characters; expected 'foo' or 'bar'\nLorem ipsum dolor sit amet \n   ^"
     }
 
     "print unexpected eof" in {

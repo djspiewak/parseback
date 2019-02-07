@@ -17,29 +17,30 @@
 package parseback
 
 object RegexSpec extends ParsebackSpec {
+  val whitespace = """\s+""".r
+  val numR = """\d+""".r
+  implicit val lexer = LexerHelper.lexer(Option(whitespace), Set.empty, Set("+", "-", "*", "/"), Set(numR))
 
   "regex parsing" should {
     "consume an integer literal" in {
-      regex("""\d+""".r) must parseOk("42")("42")
+      regex(numR) must parseOk("42")("42")
     }
 
     "handle a simple arithmetic grammar" in {
       lazy val expr: Parser[Int] = (
           expr ~ "+" ~ expr ^^ { (_, a, _, b) => a + b }
         | expr ~ "-" ~ expr ^^ { (_, a, _, b) => a - b }
-        | """\d+""".r ^^ { (_, str) => str.toInt }
+        | numR ^^ { (_, str) => str.toInt }
       )
 
       expr must parseOk("1+2")(3)
     }
 
     "handle a simple arithmetic grammar with whitespace" in {
-      implicit val W = Whitespace(() | """\s+""".r)
-
       lazy val expr: Parser[Int] = (
           expr ~ "+" ~ expr ^^ { (_, a, _, b) => a + b }
         | expr ~ "-" ~ expr ^^ { (_, a, _, b) => a - b }
-        | """\d+""".r ^^ { (_, str) => str.toInt }
+        | numR ^^ { (_, str) => str.toInt }
       )
 
       expr must parseOk("1 + 2")(3)
@@ -55,12 +56,11 @@ object RegexSpec extends ParsebackSpec {
      * second to Literal("   "))
      */
     "handle a simple arithmetic grammar with trailing whitespace" in {
-      implicit val W = Whitespace(() | """\s+""".r)
 
       lazy val expr: Parser[Int] = (
           expr ~ "+" ~ expr ^^ { (_, a, _, b) => a + b }
         | expr ~ "-" ~ expr ^^ { (_, a, _, b) => a - b }
-        | """\d+""".r ^^ { (_, str) => str.toInt }
+        | numR ^^ { (_, str) => str.toInt }
       )
 
       expr must parseOk("1 + 2   ")(3)

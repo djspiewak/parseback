@@ -18,6 +18,7 @@ package parseback
 
 object EBNFSpec extends ParsebackSpec {
   import ParseError._
+  implicit val lexer = LexerHelper.lexer(None, Set.empty, Set.empty, Set("abc".r))
 
   "p?" should {
     val p = literal("abc")?
@@ -31,7 +32,7 @@ object EBNFSpec extends ParsebackSpec {
     }
 
     "reject multi" in {
-      p must failToParse("abcabcabc")(UnexpectedTrailingCharacters(Line("abcabcabc", 0, 3)))
+      p must failToParse("abcabcabc")(UnexpectedTrailingCharacters(Line(Token("abc", "abc", "abc"), 0, 1)))
     }
   }
 

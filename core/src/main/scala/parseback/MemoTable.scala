@@ -22,8 +22,8 @@ import java.util.HashMap
 // TODO it may be possible to retain SOME results between derivations (just not those which involve Apply)
 private[parseback] sealed abstract class MemoTable {
 
-  def derived[A](from: Parser[A], c: Char, to: Parser[A]): this.type
-  def derive[A](from: Parser[A], c: Char): Option[Parser[A]]
+  def derived[A](from: Parser[A], c: Token, to: Parser[A]): this.type
+  def derive[A](from: Parser[A], c: Token): Option[Parser[A]]
 
   def finished[A](target: Parser[A], results: Results.Cacheable[A]): this.type
   def finish[A](target: Parser[A]): Option[Results.Cacheable[A]]
@@ -48,22 +48,22 @@ private[parseback] final class InitialMemoTable extends MemoTable {
   import MemoTable._
 
   // still using the single-derivation optimization here
-  private val derivations: HashMap[(MemoTable, ParserId[_]), (Char, Parser[_])] = new HashMap(16)    // TODO tune capacities
+  private val derivations: HashMap[(MemoTable, ParserId[_]), (Token, Parser[_])] = new HashMap(16)    // TODO tune capacities
   private val finishes: HashMap[(MemoTable, ParserId[_]), Results.Cacheable[_]] = new HashMap(16)
 
-  def derived[A](from: Parser[A], c: Char, to: Parser[A]): this.type =
+  def derived[A](from: Parser[A], c: Token, to: Parser[A]): this.type =
     derived(this, from, c, to)
 
-  private[parseback] def derived[A](table: MemoTable, from: Parser[A], c: Char, to: Parser[A]): this.type = {
+  private[parseback] def derived[A](table: MemoTable, from: Parser[A], c: Token, to: Parser[A]): this.type = {
     derivations.put((table, new ParserId(from)), (c, to))
 
     this
   }
 
-  def derive[A](from: Parser[A], c: Char): Option[Parser[A]] =
+  def derive[A](from: Parser[A], c: Token): Option[Parser[A]] =
     derive(this, from, c)
 
-  private[parseback] def derive[A](table: MemoTable, from: Parser[A], c: Char): Option[Parser[A]] = {
+  private[parseback] def derive[A](table: MemoTable, from: Parser[A], c: Token): Option[Parser[A]] = {
     val back = derivations.get((table, new ParserId(from)))
 
     if (back != null && back._1 == c)
@@ -92,7 +92,7 @@ private[parseback] final class InitialMemoTable extends MemoTable {
 
 private[parseback] final class FieldMemoTable(delegate: InitialMemoTable) extends MemoTable {
 
-  def derived[A](from: Parser[A], c: Char, to: Parser[A]): this.type = {
+  def derived[A](from: Parser[A], c: Token, to: Parser[A]): this.type = {
     if (from.isRoot) {
       delegate.derived(this, from, c, to)
     } else {
@@ -104,7 +104,7 @@ private[parseback] final class FieldMemoTable(delegate: InitialMemoTable) extend
     this
   }
 
-  def derive[A](from: Parser[A], c: Char): Option[Parser[A]] = {
+  def derive[A](from: Parser[A], c: Token): Option[Parser[A]] = {
     if (from.isRoot) {
       delegate.derive(this, from, c)
     } else {

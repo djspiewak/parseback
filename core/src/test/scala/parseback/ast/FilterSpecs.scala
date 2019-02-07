@@ -19,7 +19,9 @@ package ast
 
 object FilterSpecs extends ParsebackSpec {
 
-  implicit val W = Whitespace("" | """\s+""".r)
+  val whitespace = """\s+""".r
+  val numR = """\d+""".r
+  implicit val lexer = LexerHelper.lexer(Option(whitespace), Set.empty, Set("+", "-", "*", "~", "(", ")"), Set(numR))
 
   "ast filtering" should {
     "disambiguate left-associativity" in {
@@ -163,7 +165,7 @@ object FilterSpecs extends ParsebackSpec {
 
   // %%
 
-  val num = """\d+""".r map { _.toInt }
+  val num = numR map { _.toInt }
 
   // %%
 

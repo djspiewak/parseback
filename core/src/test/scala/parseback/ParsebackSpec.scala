@@ -26,7 +26,7 @@ import scala.util.{Left, Right}
 
 trait ParsebackSpec extends Spec with SpecificationFeatures {
 
-  final def recognize[A](input: String, ambiguous: Boolean = true)(implicit W: Whitespace): Matcher[Parser[A]] = { p: Parser[A] =>
+  final def recognize[A](input: String, ambiguous: Boolean = true)(implicit lexer: String => Array[Token]): Matcher[Parser[A]] = { p: Parser[A] =>
     val maybeResults = p(LineStream[Eval](input)).value
 
     maybeResults match {
@@ -40,9 +40,10 @@ trait ParsebackSpec extends Spec with SpecificationFeatures {
     }
   }
 
-  final def recognizeUnambiguously[A](input: String) = recognize[A](input, false)
+  final def recognizeUnambiguously[A](input: String)(implicit lexer: String => Array[Token]) =
+    recognize[A](input, false)
 
-  final def parseOk[A](input: String)(results: A*)(implicit W: Whitespace): Matcher[Parser[A]] = { p: Parser[A] =>
+  final def parseOk[A](input: String)(results: A*)(implicit lexer: String => Array[Token]): Matcher[Parser[A]] = { p: Parser[A] =>
     val maybeResults = p(LineStream[Eval](input)).value
 
     maybeResults match {
@@ -63,7 +64,7 @@ trait ParsebackSpec extends Spec with SpecificationFeatures {
     }
   }
 
-  final def failToParse(input: String)(errors: ParseError*)(implicit W: Whitespace): Matcher[Parser[_]] = { p: Parser[_] =>
+  final def failToParse(input: String)(errors: ParseError*)(implicit lexer: String => Array[Token]): Matcher[Parser[_]] = { p: Parser[_] =>
     val maybeResults = p(LineStream[Eval](input)).value
 
     maybeResults match {

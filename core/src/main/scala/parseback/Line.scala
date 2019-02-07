@@ -21,11 +21,11 @@ package parseback
  * @param lineNo The line offset of this line within the larger input stream (0 indexed)
  * @param colNo The column offset into `base` (0 indexed)
  */
-final case class Line(base: String, lineNo: Int = 0, colNo: Int = 0) {
+final case class Line(base: Array[Token], lineNo: Int = 0, colNo: Int = 0) {
 
-  def head: Char = base charAt colNo
+  def head: Token = base(colNo)
 
-  def project: String = base substring colNo
+  def project: String = base.map(_.value).mkString(" ")
 
   def isEmpty: Boolean = base.length == colNo
 
@@ -36,10 +36,24 @@ final case class Line(base: String, lineNo: Int = 0, colNo: Int = 0) {
     this.lineNo < that.lineNo || (this.lineNo == that.lineNo && this.colNo < that.colNo)
 
   def renderError: String =
-    base + s"${0 until colNo map { _ => ' ' } mkString}^"
+    project + s"${0 until colNo map { _ => ' ' } mkString}^"
+
+  // due to Array.
+  override def equals(thatGeneric: scala.Any): Boolean = {
+    if(!thatGeneric.isInstanceOf[Line])
+      return false
+
+    val that = thatGeneric.asInstanceOf[Line]
+    val thisBase = if(this.base == null) null else this.base.deep
+    val thatBase = if(that.base == null) null else that.base.deep
+
+    (thisBase, lineNo, colNo) == ((thatBase, that.lineNo, that.colNo))
+  }
+
+  override def toString: String = s"Line(${project}, ${lineNo}, ${colNo})"
 }
 
-object Line extends ((String, Int, Int) => Line) {
+object Line extends ((Array[Token], Int, Int) => Line) {
 
   def addTo(lines: Vector[Line], line: Line): Vector[Line] = {
     if (lines.isEmpty) {

@@ -17,6 +17,7 @@
 package parseback.benchmarks
 
 import org.openjdk.jmh.annotations._
+import parseback.LexerHelper
 
 import scala.util.parsing.{combinator => spc}
 
@@ -115,13 +116,13 @@ class ArithmeticBenchmarks {
         else
           ""
 
-        neg + i.toString + operators(i % 4)
+        neg + i.toString + " " + operators(i % 4)
       } drop 1 mkString
     }
 
     val sizes = List(2, 4, 8, 16, 32, 64, 128)
 
-    sizes.map({ i => i -> inner(i) })(collection.breakOut)
+    sizes.map({ i => i -> inner(i).dropRight(1) })(collection.breakOut)
   }
 
   @Benchmark
@@ -129,6 +130,9 @@ class ArithmeticBenchmarks {
     import _root_.parseback.LineStream
 
     import cats.Eval
+    val numR = """\d+""".r
+    val whitespace = """\s+""".r
+    implicit val lexer = LexerHelper.lexer(Option(whitespace), Set.empty, Set("+", "-", "*", "/", "(", ")"), Set(numR))
 
     val stream = LineStream[Eval](sample(size))
     parseback(stream).value

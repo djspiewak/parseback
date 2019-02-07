@@ -16,11 +16,8 @@
 
 package parseback
 
-final case class Whitespace(layout: Option[Parser[_]]) extends AnyVal
+case class Token(value: String)
 
-object Whitespace {
-  implicit val Default = Whitespace(None)
-
-  def apply(layout: Parser[_]): Whitespace =
-    Whitespace(Some(layout))
+object Token {
+  def apply(strs: String*): Array[Token] = strs.toArray.map(s=>Token(s))
 }
