@@ -29,18 +29,20 @@ lazy val root = project
   .in(file("."))
   .settings(name := "root")
   .settings(noPublishSettings)
-  .aggregate(coreJVM, coreJS)
+  .aggregate(benchmarks, coreJVM, coreJS)
 
 lazy val benchmarks = project
   .in(file("benchmarks"))
   .dependsOn(coreJVM)
   .settings(name := "parseback-benchmarks")
   .settings(
-    scalaVersion := "2.11.12",
-
     libraryDependencies ++= Seq(
-      "com.codecommit"         %% "gll-combinators"          % "2.3",
-      "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.5"),
+      // TODO:
+      // GLL Combinators, another parsing library by djspiewak
+      "com.codecommit"         % "gll-combinators_2.12"      % "2.3",
+
+      // Scala's own Parser combinators
+      "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2"),
 
     sourceDirectory in Jmh := (sourceDirectory in Compile).value)
   .settings(noPublishSettings)

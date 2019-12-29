@@ -60,7 +60,7 @@ trait BinaryNode extends Node {
 }
 
 trait LeafNode extends Node {
-  def form = 'leaf
+  def form = Symbol("leaf")
   def children = Nil
 }
 

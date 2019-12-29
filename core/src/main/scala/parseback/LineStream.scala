@@ -45,7 +45,7 @@ object LineStream {
       val splits = str split """\r|\r?\n"""
       val (front, last) = splits splitAt (splits.length - 1)
 
-      apply((front map { _ + "\n" }) ++ last)
+      apply((front map { _ + "\n" }).toIndexedSeq ++ last)
     }
   }
 

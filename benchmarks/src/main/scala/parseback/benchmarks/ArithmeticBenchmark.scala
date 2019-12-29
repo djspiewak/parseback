@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Daniel Spiewak
+ * Copyright 2019 Daniel Spiewak
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -121,7 +121,7 @@ class ArithmeticBenchmarks {
 
     val sizes = List(2, 4, 8, 16, 32, 64, 128)
 
-    sizes.map({ i => i -> inner(i) })(collection.breakOut)
+    sizes.view.map({ i => i -> inner(i) }).to(Map)
   }
 
   @Benchmark

@@ -19,19 +19,19 @@ package parseback.ast
 final case class PrecLevel(specs: Set[ManWrap]) extends AnyVal
 
 case object PrecLevel extends (Set[ManWrap] => PrecLevel) {
-  implicit def coerce1[A <% ManWrap](a: A): PrecLevel =
+  implicit def coerce1[A](a: A)(implicit mwA: A => ManWrap): PrecLevel =
     PrecLevel(Set[ManWrap](a))
 
-  implicit def coerce2[A <% ManWrap, B <% ManWrap](pair: (A, B)): PrecLevel =
+  implicit def coerce2[A,B](pair: (A, B))(implicit mwA: A => ManWrap, mwB: B => ManWrap): PrecLevel =
     PrecLevel(Set[ManWrap](pair._1, pair._2))
 
-  implicit def coerce3[A <% ManWrap, B <% ManWrap, C <% ManWrap](pair: (A, B, C)): PrecLevel =
+  implicit def coerce3[A,B,C](pair: (A, B, C))(implicit mwA: A => ManWrap, mwB: B => ManWrap, mwC: C => ManWrap): PrecLevel =
     PrecLevel(Set[ManWrap](pair._1, pair._2, pair._3))
 
-  implicit def coerce4[A <% ManWrap, B <% ManWrap, C <% ManWrap, D <% ManWrap](pair: (A, B, C, D)): PrecLevel =
+  implicit def coerce4[A,B,C,D](pair: (A, B, C, D))(implicit mwA: A => ManWrap, mwB: B => ManWrap, mwC: C => ManWrap, mwD: D => ManWrap): PrecLevel =
     PrecLevel(Set[ManWrap](pair._1, pair._2, pair._3, pair._4))
 
-  implicit def coerce5[A <% ManWrap, B <% ManWrap, C <% ManWrap, D <% ManWrap, E <% ManWrap](pair: (A, B, C, D, E)): PrecLevel =
+  implicit def coerce5[A,B,C,D,E](pair: (A, B, C, D, E))(implicit mwA: A => ManWrap, mwB: B => ManWrap, mwC: C => ManWrap, mwD: D => ManWrap, mwE: E => ManWrap): PrecLevel =
     PrecLevel(Set[ManWrap](pair._1, pair._2, pair._3, pair._4, pair._5))
 }
 
