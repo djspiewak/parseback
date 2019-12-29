@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Daniel Spiewak
+ * Copyright 2019 Daniel Spiewak
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 package parseback
 package ast
 
-object FilterSpecs extends ParsebackSpec {
+class FilterSpecs extends ParsebackSpec {
 
   implicit val W = Whitespace("" | """\s+""".r)
 
@@ -171,42 +171,42 @@ object FilterSpecs extends ParsebackSpec {
 
   case class Add(left: Expr, right: Expr) extends Expr with BinaryNode {
     val assocLeft = true
-    val sym = 'add
+    val sym: Symbol = Symbol("add")
   }
 
   case class AddRight(left: Expr, right: Expr) extends Expr with BinaryNode {
     val assocLeft = false
-    val sym = 'add
+    val sym: Symbol = Symbol("add")
   }
 
   case class Sub(left: Expr, right: Expr) extends Expr with BinaryNode {
     val assocLeft = true
-    val sym = 'sub
+    val sym: Symbol = Symbol("sub")
   }
 
   case class Mul(left: Expr, right: Expr) extends Expr with BinaryNode {
     val assocLeft = true
-    val sym = 'mul
+    val sym: Symbol = Symbol("mul")
   }
 
   case class Div(left: Expr, right: Expr) extends Expr with BinaryNode {
     val assocLeft = true
-    val sym = 'div
+    val sym: Symbol = Symbol("div")
   }
 
   case class Neg(child: Expr) extends Expr with UnaryNode {
     val isPrefix = true
-    val sym = 'neg
+    val sym: Symbol = Symbol("neg")
   }
 
   case class Comp2(child: Expr) extends Expr with UnaryNode {
     val isPrefix = true
-    val sym = 'comp
+    val sym: Symbol = Symbol("comp")
   }
 
   case class Comp(child: Expr) extends Expr with UnaryNode {
     val isPrefix = false
-    val sym = 'comp
+    val sym: Symbol = Symbol("comp")
   }
 
   case class IntLit(i: Int) extends Expr with LeafNode

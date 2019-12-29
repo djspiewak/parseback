@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Daniel Spiewak
+ * Copyright 2019 Daniel Spiewak
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package parseback
 
-object CompoundParserSpec extends ParsebackSpec {
+class CompoundParserSpec extends ParsebackSpec {
   import ParseError._
 
   "compound non-terminal parsers" should {

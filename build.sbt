@@ -22,11 +22,14 @@ addCommandAlias("measure-all", "benchmarks/jmh:run -rff results.csv")
 addCommandAlias("measure", "benchmarks/jmh:run -rff results.csv .*parsebackRun")
 addCommandAlias("profile", "benchmarks/jmh:run -prof jmh.extras.JFR -f 1 .*parsebackRun")
 
+publishGithubUser in ThisBuild := "djspiewak"
+publishFullName in ThisBuild := "Daniel Spiewak"
+
 lazy val root = project
   .in(file("."))
   .settings(name := "root")
   .settings(noPublishSettings)
-  .aggregate(benchmarks, coreJVM, coreJS)
+  .aggregate(coreJVM, coreJS)
 
 lazy val benchmarks = project
   .in(file("benchmarks"))
@@ -41,15 +44,17 @@ lazy val benchmarks = project
   .settings(noPublishSettings)
   .enablePlugins(JmhPlugin)
 
-lazy val core = crossProject
+import sbtcrossproject.CrossPlugin.autoImport.{crossProject, CrossType}
+
+lazy val core = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
   .in(file("core"))
   .settings(
     name := "parseback")
   .settings(
-    libraryDependencies += "org.typelevel" %%% "cats-core" % "1.1.0",
+    libraryDependencies += "org.typelevel" %%% "cats-core" % "2.1.0",
     libraryDependencies ++= Seq(
-      "org.scalacheck" %% "scalacheck"        % "1.13.4"       % Test,
+      "org.scalacheck" %% "scalacheck"        % "1.14.2"       % Test,
       "org.specs2"     %% "specs2-core"       % Versions.Specs % Test,
       "org.specs2"     %% "specs2-scalacheck" % Versions.Specs % Test),
     initialCommands := "import parseback._",

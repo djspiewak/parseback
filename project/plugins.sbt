@@ -14,6 +14,13 @@
  * limitations under the License.
  */
 
-addSbtPlugin("com.codecommit"     % "sbt-spiewak-bintray" % "0.3.4")
-addSbtPlugin("pl.project13.scala" % "sbt-jmh"             % "0.3.3")
-addSbtPlugin("org.scala-js"       % "sbt-scalajs"         % "0.6.22")
+// Contains handy sbt settings commonly found among cats/typelevel projects
+addSbtPlugin("com.codecommit"     % "sbt-spiewak-bintray" % "0.11.2")
+
+// Used for benchmarking
+addSbtPlugin("pl.project13.scala" % "sbt-jmh"             % "0.3.7")
+
+// Used for cross platform compilation support
+addSbtPlugin("org.portable-scala" % "sbt-scalajs-crossproject"      % "0.6.1")
+addSbtPlugin("org.scala-js"       % "sbt-scalajs"         % "0.6.31")
+

@@ -3,7 +3,8 @@ language: scala
 
 scala:
   - 2.11.12
-  - 2.12.6
+  - 2.12.8
+  - 2.13.1
 
 script:
   - sbt ++$TRAVIS_SCALA_VERSION ci

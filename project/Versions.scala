@@ -1,3 +1,3 @@
 object Versions {
-  val Specs = "4.0.2"
+  val Specs = "4.8.0"
 }

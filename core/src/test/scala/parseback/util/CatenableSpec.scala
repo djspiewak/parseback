@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Daniel Spiewak
+ * Copyright 2019 Daniel Spiewak
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import org.specs2.mutable._
 import org.specs2.ScalaCheck
 import org.scalacheck._
 
-object CatenableSpec extends Specification with ScalaCheck {
+class CatenableSpec extends Specification with ScalaCheck {
   import Catenable.{+:, Syntax}
   import Prop._
 
