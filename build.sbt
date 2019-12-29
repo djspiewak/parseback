@@ -36,6 +36,8 @@ lazy val benchmarks = project
   .dependsOn(coreJVM)
   .settings(name := "parseback-benchmarks")
   .settings(
+    scalaVersion := "2.11.12",
+
     libraryDependencies ++= Seq(
       "com.codecommit"         %% "gll-combinators"          % "2.3",
       "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.5"),
