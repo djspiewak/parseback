@@ -37,7 +37,7 @@ lazy val benchmarks = project
   .settings(name := "parseback-benchmarks")
   .settings(
     libraryDependencies ++= Seq(
-      // TODO:
+      // TODO: Update this library to 2.13
       // GLL Combinators, another parsing library by djspiewak
       "com.codecommit"         % "gll-combinators_2.12"      % "2.3",
 
