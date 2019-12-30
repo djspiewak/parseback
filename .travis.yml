@@ -3,7 +3,7 @@ language: scala
 dist: trusty
 
 scala:
-  - 2.12.8
+  - 2.12.10
   - 2.13.1
 
 script:

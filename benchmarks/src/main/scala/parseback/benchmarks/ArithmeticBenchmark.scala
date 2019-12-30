@@ -122,7 +122,7 @@ class ArithmeticBenchmarks {
     val sizes = List(2, 4, 8, 16, 32, 64, 128)
 
     import scala.collection.compat._
-    sizes.view.map({ i => i -> inner(i) }).to(Map)
+    sizes.view.map({ i => i -> inner(i) }).toMap
   }
 
   @Benchmark
