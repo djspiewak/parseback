@@ -43,7 +43,7 @@ lazy val benchmarks = project
       "com.codecommit"         % "gll-combinators_2.12"      % "2.3",
 
       // Scala's own Parser combinators
-      "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2")
+      "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2"),
 
     sourceDirectory in Jmh := (sourceDirectory in Compile).value)
   .settings(noPublishSettings)
