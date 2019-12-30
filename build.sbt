@@ -67,13 +67,8 @@ lazy val core = crossProject(JSPlatform, JVMPlatform)
     initialCommands := "import parseback._",
     logBuffered in Test := false)
   .settings(mimaPreviousArtifacts := {
-    if (CrossVersion.partialVersion(scalaVersion.value) == Some((2, 13))) {
-      // skip binary check
-      Set.empty
-    } else {
-      // use existing setting set by sbt-spiewak plugin
-      mimaPreviousArtifacts.value
-    }
+    // skip binary check
+    Set.empty
   })
 
 lazy val coreJS = core.js
