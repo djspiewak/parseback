@@ -24,6 +24,7 @@ addCommandAlias("profile", "benchmarks/jmh:run -prof jmh.extras.JFR -f 1 .*parse
 
 publishGithubUser in ThisBuild := "djspiewak"
 publishFullName in ThisBuild := "Daniel Spiewak"
+organization in ThisBuild := "com.codecommit"
 
 lazy val root = project
   .in(file("."))
@@ -62,7 +63,8 @@ lazy val core = crossProject(JSPlatform, JVMPlatform)
       "org.specs2"     %% "specs2-core"       % Versions.Specs % Test,
       "org.specs2"     %% "specs2-scalacheck" % Versions.Specs % Test),
     initialCommands := "import parseback._",
-    logBuffered in Test := false)
+    logBuffered in Test := false,
+    mimaFailOnNoPrevious := false)
 
 lazy val coreJS = core.js
 lazy val coreJVM = core.jvm
