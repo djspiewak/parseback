@@ -49,6 +49,8 @@ lazy val benchmarks = project
   .settings(noPublishSettings)
   .enablePlugins(JmhPlugin)
 
+// shadow builtin crossproject support from scalajs plugin as it is currently deprecated
+// this import statement should be removable once scalajs fully removes it
 import sbtcrossproject.CrossPlugin.autoImport.{crossProject, CrossType}
 
 lazy val core = crossProject(JSPlatform, JVMPlatform)
@@ -63,8 +65,16 @@ lazy val core = crossProject(JSPlatform, JVMPlatform)
       "org.specs2"     %% "specs2-core"       % Versions.Specs % Test,
       "org.specs2"     %% "specs2-scalacheck" % Versions.Specs % Test),
     initialCommands := "import parseback._",
-    logBuffered in Test := false,
-    mimaFailOnNoPrevious := false)
+    logBuffered in Test := false)
+  .settings(mimaPreviousArtifacts := {
+    if (CrossVersion.partialVersion(scalaVersion.value) == Some((2, 13))) {
+      // skip binary check
+      Set.empty
+    } else {
+      // use existing setting set by sbt-spiewak plugin
+      mimaPreviousArtifacts.value
+    }
+  })
 
 lazy val coreJS = core.js
 lazy val coreJVM = core.jvm
