@@ -66,10 +66,8 @@ lazy val core = crossProject(JSPlatform, JVMPlatform)
       "org.specs2"     %% "specs2-scalacheck" % Versions.Specs % Test),
     initialCommands := "import parseback._",
     logBuffered in Test := false)
-  .settings(mimaPreviousArtifacts := {
-    // skip binary check
-    Set.empty
-  })
+  .settings(
+    mimaPreviousArtifacts := Set.empty)   // TODO disable checks when sbt-spiewak has a better way of filtering versions
 
 lazy val coreJS = core.js
 lazy val coreJVM = core.jvm

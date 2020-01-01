@@ -15,7 +15,7 @@
  */
 
 // Contains handy sbt settings commonly found among cats/typelevel projects
-addSbtPlugin("com.codecommit"     % "sbt-spiewak-bintray" % "0.11.2")
+addSbtPlugin("com.codecommit"     % "sbt-spiewak-bintray" % "0.12.0")
 
 // Used for benchmarking
 addSbtPlugin("pl.project13.scala" % "sbt-jmh"             % "0.3.7")
